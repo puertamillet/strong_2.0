@@ -1,9 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { LineChart } from '../components/charts'
 import { ExerciseSheet } from '../components/ExerciseSheet'
+import { CloseButton, Sheet } from '../components/Sheet'
 import { db } from '../db'
+import { useCloseSheet, useOpenSheet } from '../lib/sheets'
 import { fmtDate, fmtInt, fmtMediumDate, fmtNumber, fmtSet, fmtShortDate, setLabels } from '../lib/format'
 import { exerciseSessions, personalRecords, type PersonalRecord, type Records, type Session } from '../lib/stats'
 import { estimated1RM } from '../lib/workouts'
@@ -29,9 +31,24 @@ const RANGES = [
 const DAY = 86_400_000
 const monthYear = new Intl.DateTimeFormat('es-ES', { month: 'short', year: '2-digit' })
 
-export function ExerciseDetailPage() {
+/** Exercise sheet opened from the Ejercicios tab (/exercises/:id). */
+export function ExerciseDetailRoute() {
   const { id = '' } = useParams()
-  const navigate = useNavigate()
+  const close = useCloseSheet()
+  const openSheet = useOpenSheet()
+  return <ExerciseDetail id={id} onClose={close} onOpenWorkout={(wid) => openSheet(`/history/${wid}`)} />
+}
+
+interface DetailProps {
+  id: string
+  onClose: () => void
+  /** Stacking level: 2 when opened from a workout or template sheet. */
+  level?: number
+  /** Opens a past workout from the history tab; left out inside other sheets. */
+  onOpenWorkout?: (workoutId: string) => void
+}
+
+export function ExerciseDetail({ id, onClose, level = 1, onOpenWorkout }: DetailProps) {
   const exercise = useLiveQuery(() => db.exercises.get(id).then((e) => e ?? null), [id])
   const sessions = useLiveQuery(
     async () => exerciseSessions(await db.workouts.where('exerciseIds').equals(id).toArray(), id),
@@ -40,68 +57,66 @@ export function ExerciseDetailPage() {
   const [tab, setTab] = useState<Tab>('charts')
   const [editing, setEditing] = useState(false)
 
-  if (exercise === undefined || !sessions) return <div className="page" />
-  if (exercise === null) {
-    return (
-      <div className="page">
-        <p className="empty">Este ejercicio ya no existe.</p>
-        <button className="btn" onClick={() => navigate('/exercises')}>
-          Volver
-        </button>
-      </div>
-    )
-  }
-
+  const loaded = exercise !== undefined && sessions !== undefined
   return (
-    <div className="page">
-      <header className="page-header sticky">
-        <button className="link" onClick={() => navigate(-1)}>
-          ‹ Atrás
-        </button>
-        <button className="link strong" onClick={() => setEditing(true)}>
-          Editar
-        </button>
-      </header>
-      <div>
-        <h1 className="detail-title">{exercise.name}</h1>
-        <p className="muted small-text detail-subtitle">
-          {exercise.category ?? 'Otros'} · {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'}
-        </p>
-      </div>
-
-      <div className="segmented" role="group" aria-label="Sección">
-        {(
-          [
-            ['charts', 'Gráficas'],
-            ['records', 'Récords'],
-            ['history', 'Historial'],
-          ] as const
-        ).map(([key, label]) => (
-          <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>
-            {label}
+    <Sheet
+      level={level}
+      label={exercise?.name ?? 'Ejercicio'}
+      title={exercise?.name}
+      left={<CloseButton onClick={onClose} />}
+      right={
+        exercise && (
+          <button className="link strong" onClick={() => setEditing(true)}>
+            Editar
           </button>
-        ))}
-      </div>
-
-      {sessions.length === 0 ? (
-        <p className="empty">Todavía no has hecho este ejercicio.</p>
-      ) : tab === 'charts' ? (
-        <ChartsTab sessions={sessions} />
-      ) : tab === 'records' ? (
-        <RecordsTab sessions={sessions} />
+        )
+      }
+      onDismiss={onClose}
+    >
+      {!loaded ? null : exercise === null ? (
+        <p className="empty">Este ejercicio ya no existe.</p>
       ) : (
-        <HistoryTab sessions={sessions} />
-      )}
+        <>
+          <p className="muted small-text detail-subtitle">
+            {exercise.category ?? 'Otros'} · {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'}
+          </p>
 
-      {editing && (
-        <ExerciseSheet
-          exercise={exercise}
-          usage={sessions.length}
-          onClose={() => setEditing(false)}
-          onDeleted={() => navigate('/exercises', { replace: true })}
-        />
+          <div className="segmented" role="group" aria-label="Sección">
+            {(
+              [
+                ['charts', 'Gráficas'],
+                ['records', 'Récords'],
+                ['history', 'Historial'],
+              ] as const
+            ).map(([key, label]) => (
+              <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {sessions.length === 0 ? (
+            <p className="empty">Todavía no has hecho este ejercicio.</p>
+          ) : tab === 'charts' ? (
+            <ChartsTab sessions={sessions} />
+          ) : tab === 'records' ? (
+            <RecordsTab sessions={sessions} />
+          ) : (
+            <HistoryTab sessions={sessions} onOpenWorkout={onOpenWorkout} />
+          )}
+
+          {editing && (
+            <ExerciseSheet
+              exercise={exercise}
+              usage={sessions.length}
+              level={level + 1}
+              onClose={() => setEditing(false)}
+              onDeleted={onClose}
+            />
+          )}
+        </>
       )}
-    </div>
+    </Sheet>
   )
 }
 
@@ -272,8 +287,7 @@ function repRanges(rows: Records['repMaxes']) {
 
 const PAGE = 20
 
-function HistoryTab({ sessions }: { sessions: Session[] }) {
-  const navigate = useNavigate()
+function HistoryTab({ sessions, onOpenWorkout }: { sessions: Session[]; onOpenWorkout?: (workoutId: string) => void }) {
   const [limit, setLimit] = useState(PAGE)
   const newestFirst = useMemo(() => [...sessions].reverse(), [sessions])
   return (
@@ -282,11 +296,19 @@ function HistoryTab({ sessions }: { sessions: Session[] }) {
         const labels = setLabels(s.sets)
         return (
           <section key={s.workoutId} className="card">
-            <button className="exercise-link" onClick={() => navigate(`/workout/${s.workoutId}`)}>
-              <strong>{s.workoutName}</strong>
-              <br />
-              <span className="muted small-text">{fmtDate(s.date)}</span>
-            </button>
+            {onOpenWorkout ? (
+              <button className="exercise-link" onClick={() => onOpenWorkout(s.workoutId)}>
+                <strong>{s.workoutName}</strong>
+                <br />
+                <span className="muted small-text">{fmtDate(s.date)}</span>
+              </button>
+            ) : (
+              <div>
+                <strong>{s.workoutName}</strong>
+                <br />
+                <span className="muted small-text">{fmtDate(s.date)}</span>
+              </div>
+            )}
             <ul className="session-sets">
               {s.sets.map((set, i) => (
                 <li key={i}>

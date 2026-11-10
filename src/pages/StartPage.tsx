@@ -1,11 +1,17 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { choose } from '../lib/dialog'
+import { CloseButton } from '../components/Sheet'
 import { db, type Template } from '../db'
 import { fmtShortDate, normalize } from '../lib/format'
-import { getActiveWorkout, startWorkout } from '../lib/workouts'
+import { restTimer } from '../lib/restTimer'
+import { useOpenSheet } from '../lib/sheets'
+import { discardWorkout, getActiveWorkout, startWorkout } from '../lib/workouts'
 
 export function StartPage() {
   const navigate = useNavigate()
+  const openSheet = useOpenSheet()
   const active = useLiveQuery(() => getActiveWorkout().then((w) => w ?? null), [])
   const templates = useLiveQuery(() => db.templates.orderBy('name').toArray(), [])
   const workoutCount = useLiveQuery(() => db.workouts.count(), [])
@@ -13,6 +19,7 @@ export function StartPage() {
     async () => new Map((await db.exercises.toArray()).map((e) => [e.id, e.name] as const)),
     [],
   )
+  const [preview, setPreview] = useState<Template | null>(null)
   // Last time each template's routine was done: by template link, or by name (imported workouts).
   const lastUsed = useLiveQuery(async () => {
     const byTemplate = new Map<string, number>()
@@ -31,10 +38,30 @@ export function StartPage() {
   }, [])
 
   async function start(template?: Template) {
-    if (active && !confirm(`Ya tienes un entreno en curso («${active.name}»). ¿Continuarlo?`)) return
+    setPreview(null)
+    if (active) {
+      const choice = await choose(
+        'Ya tienes un entreno en curso',
+        [
+          { label: 'Continuar el entreno', value: 'resume', style: 'primary' },
+          { label: 'Descartarlo y empezar otro', value: 'discard', style: 'danger' },
+          { label: 'Cancelar', value: null },
+        ],
+        `«${active.name}» sigue abierto.`,
+      )
+      if (choice === 'resume') {
+        openSheet(`/workout/${active.id}`)
+        return
+      }
+      if (choice !== 'discard') return
+      await discardWorkout(active.id)
+      restTimer.stop()
+    }
     const id = await startWorkout(template)
-    navigate(`/workout/${id}`)
+    openSheet(`/workout/${id}`)
   }
+
+  const names = (t: Template) => t.exercises.map((e) => exerciseNames?.get(e.exerciseId) ?? '?').join(', ')
 
   return (
     <div className="page">
@@ -42,17 +69,9 @@ export function StartPage() {
         <h1>Entrenar</h1>
       </header>
 
-      {active ? (
-        <button className="card active-card" onClick={() => navigate(`/workout/${active.id}`)}>
-          <span className="muted">Entreno en curso</span>
-          <strong>{active.name}</strong>
-          <span className="link">Continuar ›</span>
-        </button>
-      ) : (
-        <button className="btn primary full" onClick={() => start()}>
-          Empezar entreno vacío
-        </button>
-      )}
+      <button className="btn primary full" onClick={() => void start()}>
+        Empezar entreno vacío
+      </button>
 
       {workoutCount === 0 && (
         <button className="card hint-card" onClick={() => navigate('/settings')}>
@@ -64,36 +83,85 @@ export function StartPage() {
 
       <div className="section-head">
         <h2>Plantillas</h2>
-        <button className="link strong" onClick={() => navigate('/templates/new')}>
+        <button className="link strong" onClick={() => openSheet('/templates/new')}>
           ＋ Nueva
         </button>
       </div>
 
       {templates?.length === 0 && (
-        <p className="empty">
-          Aún no tienes plantillas. Crea una, o guarda un entreno como plantilla al terminarlo.
-        </p>
+        <p className="empty">Aún no tienes plantillas. Crea una, o guarda un entreno como plantilla al terminarlo.</p>
       )}
 
       <div className="template-grid">
         {templates?.map((t) => (
-          <article key={t.id} className="card template-card">
-            <button className="template-body" onClick={() => navigate(`/templates/${t.id}`)}>
-              <strong>{t.name}</strong>
-              <span className="muted small-text">
-                {t.exercises
-                  .map((e) => `${e.sets.length} × ${exerciseNames?.get(e.exerciseId) ?? '?'}`)
-                  .join(', ')}
-              </span>
-              {lastUsed?.get(t.id) && (
-                <span className="muted small-text">Último: {fmtShortDate(lastUsed.get(t.id)!)}</span>
-              )}
-            </button>
-            <button className="btn small primary" onClick={() => start(t)}>
-              Empezar
-            </button>
-          </article>
+          <button key={t.id} className="card template-card" onClick={() => setPreview(t)}>
+            <strong>{t.name}</strong>
+            <span className="muted small-text template-exercises">{names(t)}</span>
+            {lastUsed?.get(t.id) && <span className="muted small-text">Último: {fmtShortDate(lastUsed.get(t.id)!)}</span>}
+          </button>
         ))}
+      </div>
+
+      {preview && (
+        <TemplatePreview
+          template={preview}
+          names={exerciseNames}
+          lastUsed={lastUsed?.get(preview.id)}
+          onClose={() => setPreview(null)}
+          onEdit={() => {
+            setPreview(null)
+            openSheet(`/templates/${preview.id}`)
+          }}
+          onStart={() => void start(preview)}
+        />
+      )}
+    </div>
+  )
+}
+
+interface PreviewProps {
+  template: Template
+  names?: Map<string, string>
+  lastUsed?: number
+  onClose: () => void
+  onEdit: () => void
+  onStart: () => void
+}
+
+/** A template at a glance, like Strong: its exercises and working sets, Editar and Empezar. */
+function TemplatePreview({ template, names, lastUsed, onClose, onEdit, onStart }: PreviewProps) {
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div
+        className="dialog template-preview"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="preview-head">
+          <CloseButton onClick={onClose} />
+          <h2 id="preview-title">{template.name}</h2>
+          <button className="link strong" onClick={onEdit}>
+            Editar
+          </button>
+        </div>
+        {lastUsed && <p className="muted small-text">Último: {fmtShortDate(lastUsed)}</p>}
+        <ul className="preview-list">
+          {template.exercises.map((e, i) => {
+            const working = e.sets.filter((s) => s.type !== 'warmup').length
+            return (
+              <li key={i}>
+                <span className="preview-sets">{working} ×</span>
+                <span>{names?.get(e.exerciseId) ?? 'Ejercicio eliminado'}</span>
+              </li>
+            )
+          })}
+        </ul>
+        {template.exercises.length === 0 && <p className="muted small-text">Esta plantilla no tiene ejercicios.</p>}
+        <button className="btn primary full" onClick={onStart}>
+          Empezar entreno
+        </button>
       </div>
     </div>
   )

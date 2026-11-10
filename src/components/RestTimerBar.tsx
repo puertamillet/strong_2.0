@@ -1,27 +1,13 @@
-import { useEffect, useState } from 'react'
 import { fmtClock } from '../lib/format'
-import { REST_STEP, restTimer, signalRestOver, useRestTimer } from '../lib/restTimer'
+import { REST_STEP, restTimer, useRestTimer } from '../lib/restTimer'
+import { useNow } from '../lib/useNow'
 
+/** The running rest: time left, −/+ and skip. The bell itself is rung by useRestAlarm. */
 export function RestTimerBar() {
   const timer = useRestTimer()
-  const [now, setNow] = useState(() => Date.now())
-
-  useEffect(() => {
-    if (!timer) return
-    const t = setInterval(() => {
-      const n = Date.now()
-      setNow(n)
-      if (n >= timer.endsAt) {
-        restTimer.stop()
-        // Don't beep late when coming back to the app long after the rest ended.
-        if (document.visibilityState === 'visible' && n - timer.endsAt < 2000) signalRestOver()
-      }
-    }, 250)
-    return () => clearInterval(t)
-  }, [timer])
-
+  const now = useNow(250, timer !== null)
   if (!timer) return null
-  const remaining = (timer.endsAt - now) / 1000
+  const remaining = Math.max(0, (timer.endsAt - now) / 1000)
   const progress = Math.min(1, Math.max(0, 1 - remaining / timer.total))
 
   return (

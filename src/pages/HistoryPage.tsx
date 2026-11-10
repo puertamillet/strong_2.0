@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ColumnChart } from '../components/charts'
 import { Icon } from '../components/icons'
 import { db } from '../db'
+import { useOpenSheet } from '../lib/sheets'
 import { fmtDate, fmtDuration, fmtInt, fmtSet, fmtShortDate } from '../lib/format'
 import { bestSet, volume, weeklyCounts, weekStart, workoutPRCounts } from '../lib/stats'
 
@@ -11,7 +11,7 @@ const PAGE = 30
 const WEEKS = 12
 
 export function HistoryPage() {
-  const navigate = useNavigate()
+  const openSheet = useOpenSheet()
   const [limit, setLimit] = useState(PAGE)
   const [now] = useState(Date.now)
   const workouts = useLiveQuery(
@@ -109,7 +109,7 @@ export function HistoryPage() {
       {workouts?.map((w) => {
         const prs = summary?.prs.get(w.id) ?? 0
         return (
-          <button key={w.id} className="card history-card" onClick={() => navigate(`/workout/${w.id}`)}>
+          <button key={w.id} className="card history-card" onClick={() => openSheet(`/history/${w.id}`)}>
             <span className="history-title">
               <strong>{w.name}</strong>
               {prs > 0 && (

@@ -3,15 +3,18 @@ import { useMemo, useState } from 'react'
 import { db, newId } from '../db'
 import { normalize } from '../lib/format'
 import { guessCategory } from '../seed'
+import { CloseButton, Sheet } from './Sheet'
 
 interface Props {
   onClose: () => void
   onPick: (exerciseIds: string[]) => void
   multiple?: boolean
   title?: string
+  /** Stacking level of the sheet (one more than the sheet it opens from). */
+  level?: number
 }
 
-export function ExercisePicker({ onClose, onPick, multiple = true, title = 'Añadir ejercicios' }: Props) {
+export function ExercisePicker({ onClose, onPick, multiple = true, title = 'Añadir ejercicios', level = 2 }: Props) {
   const exercises = useLiveQuery(() => db.exercises.orderBy('name').toArray(), [])
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<string[]>([])
@@ -41,49 +44,49 @@ export function ExercisePicker({ onClose, onPick, multiple = true, title = 'Aña
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-header">
-          <button className="link" onClick={onClose}>
-            Cancelar
+    <Sheet
+      level={level}
+      label={title}
+      title={title}
+      left={<CloseButton onClick={onClose} />}
+      right={
+        multiple && (
+          <button className="link strong" disabled={!selected.length} onClick={() => onPick(selected)}>
+            Añadir{selected.length ? ` (${selected.length})` : ''}
           </button>
-          <strong>{title}</strong>
-          {multiple ? (
-            <button className="link strong" disabled={!selected.length} onClick={() => onPick(selected)}>
-              Añadir{selected.length ? ` (${selected.length})` : ''}
-            </button>
-          ) : (
-            <span />
-          )}
-        </div>
+        )
+      }
+      onDismiss={onClose}
+      toolbar={
         <input
-          className="search"
+          className="search sheet-search"
           type="search"
           placeholder="Buscar ejercicio"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <ul className="list sheet-list">
-          {filtered.map((e) => (
-            <li key={e.id}>
-              <button className={`row ${selected.includes(e.id) ? 'selected' : ''}`} onClick={() => toggle(e.id)}>
-                <span>
-                  {e.name}
-                  {e.category && <small className="muted"> · {e.category}</small>}
-                </span>
-                {selected.includes(e.id) && <span className="check">✓</span>}
-              </button>
-            </li>
-          ))}
-          {query.trim() && !exact && (
-            <li>
-              <button className="row create-row" onClick={createExercise}>
-                <span>＋ Crear «{query.trim()}»</span>
-              </button>
-            </li>
-          )}
-        </ul>
-      </div>
-    </div>
+      }
+    >
+      <ul className="list card picker-list">
+        {filtered.map((e) => (
+          <li key={e.id}>
+            <button className={`row ${selected.includes(e.id) ? 'selected' : ''}`} onClick={() => toggle(e.id)}>
+              <span>
+                {e.name}
+                {e.category && <small className="muted"> · {e.category}</small>}
+              </span>
+              {selected.includes(e.id) && <span className="check">✓</span>}
+            </button>
+          </li>
+        ))}
+        {query.trim() && !exact && (
+          <li>
+            <button className="row create-row" onClick={createExercise}>
+              <span>＋ Crear «{query.trim()}»</span>
+            </button>
+          </li>
+        )}
+      </ul>
+    </Sheet>
   )
 }

@@ -1,13 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ExerciseSheet } from '../components/ExerciseSheet'
 import { db, type Exercise } from '../db'
 import { normalize } from '../lib/format'
+import { useOpenSheet } from '../lib/sheets'
 import { guessCategory } from '../seed'
 
 export function ExercisesPage() {
-  const navigate = useNavigate()
+  const openSheet = useOpenSheet()
   const exercises = useLiveQuery(() => db.exercises.orderBy('name').toArray(), [])
   const usage = useLiveQuery(async () => {
     const counts = new Map<string, number>()
@@ -54,7 +54,7 @@ export function ExercisesPage() {
           <ul className="list card">
             {list.map((e) => (
               <li key={e.id}>
-                <button className="row" onClick={() => navigate(`/exercises/${e.id}`)}>
+                <button className="row" onClick={() => openSheet(`/exercises/${e.id}`)}>
                   <span>{e.name}</span>
                   <span className="muted small-text">{usage?.get(e.id) ?? 0}×</span>
                 </button>
@@ -64,7 +64,7 @@ export function ExercisesPage() {
         </section>
       ))}
       {editing && (
-        <ExerciseSheet exercise={editing} usage={usage?.get(editing.id) ?? 0} onClose={() => setEditing(null)} />
+        <ExerciseSheet exercise={editing} usage={usage?.get(editing.id) ?? 0} level={1} onClose={() => setEditing(null)} />
       )}
     </div>
   )

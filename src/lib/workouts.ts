@@ -3,7 +3,10 @@ import {
   DEFAULT_REST_SECONDS,
   emptySet,
   newId,
+  type SetType,
   type Template,
+  type TemplateExercise,
+  type TemplateSet,
   type Workout,
   type WorkoutExercise,
   type WorkoutSet,
@@ -22,8 +25,9 @@ export async function startWorkout(template?: Template): Promise<string> {
     ? template.exercises.map((te) => ({
         exerciseId: te.exerciseId,
         restSeconds: te.restSeconds,
-        // Templates define structure only; values come from the last performance (shown as placeholders).
-        sets: te.sets.map((s) => emptySet(s.type)),
+        // The template's weights and reps (last time's, kept up to date when finishing); empty ones get
+        // last time's values as placeholders.
+        sets: te.sets.map(fromTemplateSet),
       }))
     : []
   const workout: Workout = {
@@ -58,22 +62,24 @@ export async function mutateWorkout(id: string, fn: (w: Workout) => void): Promi
   })
 }
 
-export async function addExercisesToWorkout(id: string, exerciseIds: string[]): Promise<void> {
+/** New exercises for a workout or template, with as many sets as last time (at least one), like Strong. */
+export async function newWorkoutExercises(exerciseIds: string[], excludeWorkoutId?: string): Promise<WorkoutExercise[]> {
   const exercises = await db.exercises.bulkGet(exerciseIds)
-  const previous = await Promise.all(exerciseIds.map((eid) => lastPerformance(eid, id)))
+  const previous = await Promise.all(exerciseIds.map((eid) => lastPerformance(eid, excludeWorkoutId)))
+  return exerciseIds.map((exerciseId, i) => {
+    const prev = previous[i]
+    return {
+      exerciseId,
+      restSeconds: prev?.restSeconds ?? exercises[i]?.defaultRestSeconds ?? DEFAULT_REST_SECONDS,
+      sets: prev?.sets.length ? prev.sets.map((s) => emptySet(s.type)) : [emptySet()],
+    }
+  })
+}
+
+export async function addExercisesToWorkout(id: string, exerciseIds: string[]): Promise<void> {
+  const added = await newWorkoutExercises(exerciseIds, id)
   await mutateWorkout(id, (w) => {
-    exerciseIds.forEach((exerciseId, i) => {
-      const prev = previous[i]
-      // Pre-fill with as many sets as last time (at least one), like Strong does.
-      const sets: WorkoutSet[] = prev?.sets.length
-        ? prev.sets.map((s) => ({ ...emptySet(s.type) }))
-        : [emptySet()]
-      w.exercises.push({
-        exerciseId,
-        restSeconds: prev?.restSeconds ?? exercises[i]?.defaultRestSeconds ?? DEFAULT_REST_SECONDS,
-        sets,
-      })
-    })
+    w.exercises.push(...added)
   })
 }
 
@@ -164,44 +170,122 @@ export async function finishWorkout(id: string): Promise<boolean> {
   return kept
 }
 
-/** True if the workout's exercises or set counts differ from its template. */
-export function differsFromTemplate(w: Workout, t: Template): boolean {
-  const done = w.exercises
-    .map((e) => ({ id: e.exerciseId, n: e.sets.filter((s) => s.done).length }))
-    .filter((e) => e.n > 0)
-  if (done.length !== t.exercises.length) return true
-  return done.some((e, i) => e.id !== t.exercises[i].exerciseId || e.n !== t.exercises[i].sets.length)
+/** Sets that went into a template: type and values, without completion state. */
+export function toTemplateSet(s: WorkoutSet): TemplateSet {
+  const t: TemplateSet = { type: s.type, weight: s.weight, reps: s.reps }
+  if (s.seconds != null) t.seconds = s.seconds
+  if (s.distance != null) t.distance = s.distance
+  return t
 }
 
-/** Overwrite a template with the completed sets of a workout. */
-export async function updateTemplateFromWorkout(w: Workout, templateId: string): Promise<void> {
-  await db.templates.update(templateId, {
-    updatedAt: Date.now(),
-    exercises: w.exercises
-      .map((e) => ({
-        exerciseId: e.exerciseId,
-        restSeconds: e.restSeconds,
-        sets: e.sets.filter((s) => s.done).map(({ type }) => ({ type, weight: null, reps: null })),
-      }))
-      .filter((e) => e.sets.length > 0),
+export function fromTemplateSet(s: TemplateSet): WorkoutSet {
+  const set: WorkoutSet = { ...emptySet(s.type), weight: s.weight ?? null, reps: s.reps ?? null }
+  if (s.seconds != null) set.seconds = s.seconds
+  if (s.distance != null) set.distance = s.distance
+  return set
+}
+
+/**
+ * True if the workout's structure differs from its template: exercises (or their order),
+ * the sets of each exercise (count or type) or the rest timers. Sets left unticked still
+ * count as part of the structure: skipping a set is not changing the template.
+ */
+export function differsFromTemplate(w: Workout, t: Template): boolean {
+  if (w.exercises.length !== t.exercises.length) return true
+  return w.exercises.some((e, i) => {
+    const te = t.exercises[i]
+    return (
+      e.exerciseId !== te.exerciseId ||
+      e.restSeconds !== te.restSeconds ||
+      e.sets.length !== te.sets.length ||
+      e.sets.some((s, j) => s.type !== te.sets[j].type)
+    )
   })
+}
+
+/** Pairs each item of `a` with the item of `b` for the same exercise and occurrence (the 2nd bench press with the 2nd). */
+function pairByExercise<A extends { exerciseId: string }, B extends { exerciseId: string }>(a: A[], b: B[]): (B | undefined)[] {
+  const pools = new Map<string, B[]>()
+  for (const item of b) pools.set(item.exerciseId, [...(pools.get(item.exerciseId) ?? []), item])
+  return a.map((item) => pools.get(item.exerciseId)?.shift())
+}
+
+/** The set of `sets` with the same type and position among its type as `sets[index]` in `like`. */
+function sameTypeSet<T extends { type: SetType }>(sets: T[] | undefined, like: { type: SetType }[], index: number): T | undefined {
+  const type = like[index].type
+  const n = like.slice(0, index).filter((s) => s.type === type).length
+  return sets?.filter((s) => s.type === type)[n]
+}
+
+/** The template with the weights and reps of the sets completed in the workout (same exercise, same kind of set, in order). */
+export function templateWithValues(t: Template, w: Workout): Template {
+  const sources = pairByExercise(t.exercises, w.exercises)
+  return {
+    ...t,
+    exercises: t.exercises.map((te, i): TemplateExercise => {
+      const we = sources[i]
+      if (!we) return te
+      return {
+        ...te,
+        sets: te.sets.map((s, j) => {
+          const done = sameTypeSet(we.sets, te.sets, j)
+          return done?.done ? { ...s, ...toTemplateSet(done) } : s
+        }),
+      }
+    }),
+  }
+}
+
+/** The template rebuilt from the workout: its exercises, sets and rest timers, with today's values. */
+export function templateFromWorkout(t: Template, w: Workout): Template {
+  return {
+    ...t,
+    exercises: w.exercises
+      .filter((e) => e.sets.length > 0)
+      .map((e) => ({ exerciseId: e.exerciseId, restSeconds: e.restSeconds, sets: e.sets.map(toTemplateSet) })),
+  }
+}
+
+/**
+ * After finishing a workout started from a template: the template always takes the
+ * weights and reps done today; with `structure` it also takes the exercises, sets and
+ * rest timers. `w` is the workout as it was before finishing (with unticked sets).
+ */
+export async function syncTemplate(w: Workout, templateId: string, structure: boolean): Promise<void> {
+  await db.transaction('rw', db.templates, async () => {
+    const t = await db.templates.get(templateId)
+    if (!t) return
+    const next = structure ? templateFromWorkout(t, w) : templateWithValues(t, w)
+    await db.templates.put({ ...next, updatedAt: Date.now() })
+  })
+}
+
+/**
+ * Saves an edited past workout: like finishing, unticked sets and empty exercises are
+ * dropped. Returns false if nothing is left (the workout is not saved).
+ */
+export async function saveWorkout(draft: Workout): Promise<boolean> {
+  const exercises = draft.exercises
+    .map((e) => ({ ...e, sets: e.sets.filter((s) => s.done) }))
+    .filter((e) => e.sets.length > 0)
+  if (exercises.length === 0) return false
+  await db.workouts.put({ ...draft, exercises, exerciseIds: [...new Set(exercises.map((e) => e.exerciseId))] })
+  return true
 }
 
 export async function discardWorkout(id: string): Promise<void> {
   await db.workouts.delete(id)
 }
 
-/** Save a workout's structure as a new template. */
+/** Save a workout as a new template, with its weights and reps. */
 export async function saveAsTemplate(w: Workout, name = w.name): Promise<string> {
   const template: Template = {
     id: newId(),
     name,
     updatedAt: Date.now(),
-    exercises: w.exercises.map((e) => ({
-      exerciseId: e.exerciseId,
-      restSeconds: e.restSeconds,
-      sets: e.sets.map(({ type }) => ({ type, weight: null, reps: null })),
-    })),
+    exercises: w.exercises
+      .filter((e) => e.sets.length > 0)
+      .map((e) => ({ exerciseId: e.exerciseId, restSeconds: e.restSeconds, sets: e.sets.map(toTemplateSet) })),
   }
   await db.templates.add(template)
   return template.id

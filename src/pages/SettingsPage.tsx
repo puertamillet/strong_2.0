@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { confirmDialog } from '../lib/dialog'
 import { db } from '../db'
 import {
   createBackup,
@@ -85,7 +86,13 @@ export function SettingsPage() {
   }
 
   async function onRestore(file: File) {
-    if (!confirm('Restaurar la copia reemplazará TODOS los datos actuales. ¿Continuar?')) return
+    const ok = await confirmDialog({
+      title: '¿Restaurar la copia?',
+      message: 'Reemplazará todos los datos de este dispositivo por los de la copia.',
+      confirm: 'Restaurar',
+      danger: true,
+    })
+    if (!ok) return
     setSummary(null)
     setStatus({ kind: 'busy', text: 'Restaurando…' })
     try {
@@ -97,8 +104,20 @@ export function SettingsPage() {
   }
 
   async function onDeleteAll() {
-    if (!confirm('¿Borrar todos los entrenos, plantillas y ejercicios de este dispositivo?')) return
-    if (!confirm('Esta acción no se puede deshacer. ¿Seguro?')) return
+    const first = await confirmDialog({
+      title: '¿Borrar todos los datos?',
+      message: 'Se borrarán los entrenos, las plantillas y los ejercicios de este dispositivo.',
+      confirm: 'Borrar todo',
+      danger: true,
+    })
+    if (!first) return
+    const sure = await confirmDialog({
+      title: 'No se puede deshacer',
+      message: 'Si no tienes una copia de seguridad, perderás tu historial. ¿Seguro?',
+      confirm: 'Sí, borrar todo',
+      danger: true,
+    })
+    if (!sure) return
     await deleteAllData()
     await seedIfEmpty()
     setSummary(null)
