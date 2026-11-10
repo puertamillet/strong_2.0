@@ -1,8 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
-import { db, newId } from '../db'
-import { normalize } from '../lib/format'
-import { guessCategory } from '../seed'
+import { db, type Exercise } from '../db'
+import { compareExercises, filterExercises, NO_FILTER, primaryText, type ExerciseFilter } from '../lib/exercises'
+import { ExerciseFilters } from './ExerciseFilters'
+import { ExerciseSheet } from './ExerciseSheet'
+import { ExerciseTags } from './ExerciseTags'
 import { CloseButton, Sheet } from './Sheet'
 
 interface Props {
@@ -15,16 +17,13 @@ interface Props {
 }
 
 export function ExercisePicker({ onClose, onPick, multiple = true, title = 'Añadir ejercicios', level = 2 }: Props) {
-  const exercises = useLiveQuery(() => db.exercises.orderBy('name').toArray(), [])
-  const [query, setQuery] = useState('')
+  const exercises = useLiveQuery(async () => (await db.exercises.toArray()).sort(compareExercises), [])
+  const [filter, setFilter] = useState<ExerciseFilter>(NO_FILTER)
   const [selected, setSelected] = useState<string[]>([])
+  const [creating, setCreating] = useState<Exercise | null>(null)
 
-  const filtered = useMemo(() => {
-    const q = normalize(query.trim())
-    return (exercises ?? []).filter((e) => !q || normalize(e.name).includes(q) || normalize(e.category ?? '').includes(q))
-  }, [exercises, query])
-
-  const exact = (exercises ?? []).some((e) => normalize(e.name) === normalize(query.trim()))
+  const filtered = useMemo(() => filterExercises(exercises ?? [], filter), [exercises, filter])
+  const query = filter.query.trim()
 
   function toggle(id: string) {
     if (!multiple) {
@@ -34,13 +33,14 @@ export function ExercisePicker({ onClose, onPick, multiple = true, title = 'Aña
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
   }
 
-  async function createExercise() {
-    const name = query.trim()
-    if (!name) return
-    const id = newId()
-    await db.exercises.add({ id, name, category: guessCategory(name), createdAt: Date.now() })
-    setQuery('')
-    toggle(id)
+  function startCreating() {
+    setCreating({
+      id: '',
+      name: query,
+      equipment: filter.equipment ?? undefined,
+      primary: filter.muscle ? [filter.muscle] : undefined,
+      createdAt: Date.now(),
+    })
   }
 
   return (
@@ -58,35 +58,55 @@ export function ExercisePicker({ onClose, onPick, multiple = true, title = 'Aña
       }
       onDismiss={onClose}
       toolbar={
-        <input
-          className="search sheet-search"
-          type="search"
-          placeholder="Buscar ejercicio"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="sheet-search exercise-search">
+          <input
+            className="search"
+            type="search"
+            placeholder="Buscar ejercicio"
+            aria-label="Buscar ejercicio"
+            value={filter.query}
+            onChange={(e) => setFilter({ ...filter, query: e.target.value })}
+          />
+          <ExerciseFilters filter={filter} onChange={setFilter} />
+        </div>
       }
     >
       <ul className="list card picker-list">
         {filtered.map((e) => (
           <li key={e.id}>
-            <button className={`row ${selected.includes(e.id) ? 'selected' : ''}`} onClick={() => toggle(e.id)}>
-              <span>
-                {e.name}
-                {e.category && <small className="muted"> · {e.category}</small>}
+            <button
+              className={`row exercise-row ${selected.includes(e.id) ? 'selected' : ''}`}
+              aria-pressed={multiple ? selected.includes(e.id) : undefined}
+              onClick={() => toggle(e.id)}
+            >
+              <span className="exercise-row-text">
+                <span className="exercise-row-title">
+                  {e.name} <ExerciseTags exercise={e} />
+                </span>
+                <small className={e.primary?.length ? 'muted' : 'missing'}>{primaryText(e) || 'Faltan los músculos'}</small>
               </span>
               {selected.includes(e.id) && <span className="check">✓</span>}
             </button>
           </li>
         ))}
-        {query.trim() && !exact && (
-          <li>
-            <button className="row create-row" onClick={createExercise}>
-              <span>＋ Crear «{query.trim()}»</span>
-            </button>
-          </li>
-        )}
+        <li>
+          <button className="row create-row" onClick={startCreating}>
+            <span>＋ {query ? `Crear «${query}»` : 'Crear un ejercicio'}</span>
+          </button>
+        </li>
       </ul>
+      {creating && (
+        <ExerciseSheet
+          exercise={creating}
+          usage={0}
+          level={level + 1}
+          onClose={() => setCreating(null)}
+          onSaved={(e) => {
+            setFilter(NO_FILTER)
+            toggle(e.id)
+          }}
+        />
+      )}
     </Sheet>
   )
 }

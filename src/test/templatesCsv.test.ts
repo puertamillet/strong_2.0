@@ -23,6 +23,18 @@ const TWO_SIDED = [
   'Brazo;Curl de prueba;;;;Normal;15;11;;;1;;;',
 ].join('\n')
 
+// Press de banca with a barbell, as the catalog has it.
+const bench: Exercise = {
+  id: 'bench',
+  name: 'Press de banca',
+  equipment: 'Barra',
+  laterality: 'Bilateral',
+  primary: ['Pectoral'],
+  secondary: ['Deltoides anterior', 'Tríceps'],
+  strongNames: ['Bench Press (Barbell)'],
+  createdAt: 0,
+}
+
 describe('templates CSV', () => {
   it('reads templates, sets, rests and notes', () => {
     const [empuje, pierna] = parseTemplatesCsv(SAMPLE)
@@ -72,8 +84,8 @@ describe('templates CSV', () => {
     expect(() => parseTemplatesCsv('Date,Workout Name\n1,2')).toThrow(/CSV de plantillas/)
   })
 
-  it('replaces templates with the same name and creates missing exercises', () => {
-    const exercises: Exercise[] = [{ id: 'bench', name: 'Bench Press (Barbell)', createdAt: 0 }]
+  it('replaces templates with the same name and creates missing exercises from the catalog', () => {
+    const exercises: Exercise[] = [bench]
     const existing: Template[] = [{ id: 'old', name: 'empuje', updatedAt: 0, exercises: [] }]
     const plan = planTemplateImport(parseTemplatesCsv(SAMPLE), existing, exercises)
     expect(plan.replaced).toEqual(['empuje'])
@@ -81,26 +93,43 @@ describe('templates CSV', () => {
       [true, 'Empuje'],
       [false, 'Pierna'],
     ])
-    expect(plan.newExercises.map((e) => [e.name, e.laterality])).toEqual([
-      ['Unilateral Triceps Extension (Cable)', 'Unilateral'],
-      ['Sentadilla hack', 'Bilateral'],
-    ])
+    // Found by its name in Strong.
     expect(plan.templates[0].exercises[0].exerciseId).toBe('bench')
+    // By its name in Strong, or by the Spanish one when only one catalog exercise has it.
+    expect(plan.newExercises.map((e) => [e.name, e.equipment, e.laterality])).toEqual([
+      ['Extensión de tríceps', 'Cables', 'Unilateral'],
+      ['Sentadilla hack', 'Máquina de discos', 'Bilateral'],
+    ])
+    expect(plan.newExercises[0].strongNames).toContain('Unilateral Triceps Extension (Cable)')
   })
 
-  it('finds an exercise still named as in Strong by its name in Spanish, if only one matches', () => {
-    const exercises: Exercise[] = [{ id: 'hack', name: 'Squat (Machine)', createdAt: 0 }]
-    const plan = planTemplateImport(parseTemplatesCsv(SAMPLE), [], exercises)
+  it('finds exercises by their name in Spanish only when one has it', () => {
+    const hack: Exercise = { id: 'hack', name: 'Sentadilla hack', equipment: 'Máquina de discos', laterality: 'Bilateral', createdAt: 0 }
+    const plan = planTemplateImport(parseTemplatesCsv(SAMPLE), [], [bench, hack])
     expect(plan.templates[1].exercises[0].exerciseId).toBe('hack')
+
+    // Two exercises are called «Press de banca»: a new one, to complete by hand.
+    const dumbbells: Exercise = { ...bench, id: 'bench-db', equipment: 'Mancuernas', strongNames: ['Bench Press (Dumbbell)'] }
+    const ambiguous = 'Plantilla;Ejercicio;kg;Reps\nPecho;Press de banca;60;8'
+    const again = planTemplateImport(parseTemplatesCsv(ambiguous), [], [bench, dumbbells])
+    expect(again.newExercises.map((e) => [e.name, e.equipment, e.laterality])).toEqual([['Press de banca', undefined, 'Bilateral']])
+  })
+
+  it('makes one exercise of the rows that name the same new one', () => {
+    const csv = 'Plantilla;Exercise Name;Ejercicio;kg;Reps\nA;Squat (Machine);;100;8\nB;;Sentadilla hack;100;8'
+    const plan = planTemplateImport(parseTemplatesCsv(csv), [], [])
+    expect(plan.newExercises).toHaveLength(1)
+    expect(plan.templates[1].exercises[0].exerciseId).toBe(plan.newExercises[0].id)
   })
 
   it('exports what it imports', () => {
     const exercises: Exercise[] = [
-      { id: 'bench', name: 'Bench Press (Barbell)', createdAt: 0 },
-      { id: 'ext', name: 'Unilateral Triceps Extension (Cable)', createdAt: 0 },
-      { id: 'hack', name: 'Squat (Machine)', createdAt: 0 },
+      bench,
+      { id: 'ext', name: 'Extensión de tríceps', equipment: 'Cables', laterality: 'Unilateral', strongNames: ['Unilateral Triceps Extension (Cable)'], createdAt: 0 },
+      { id: 'hack', name: 'Sentadilla hack', equipment: 'Máquina de discos', laterality: 'Bilateral', strongNames: ['Squat (Machine)'], createdAt: 0 },
     ]
     const { templates } = planTemplateImport(parseTemplatesCsv(SAMPLE), [], exercises)
+    expect(templates.flatMap((t) => t.exercises.map((e) => e.exerciseId))).toEqual(['bench', 'ext', 'hack'])
     const csv = templatesToCsv(templates, new Map(exercises.map((e) => [e.id, e])))
     expect(csv.split(/\r?\n/)[0]).toBe(TEMPLATE_HEADER.join(','))
     const again = planTemplateImport(parseTemplatesCsv(csv), [], exercises)

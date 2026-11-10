@@ -1,5 +1,7 @@
 import { db, type Exercise, type Template, type Workout } from '../db'
+import { strongName } from './exercises'
 import { expandTemplateSides, expandWorkoutSides } from './legacy'
+import { migrateToCatalog } from './migrations'
 import { parseStrongCsv, workoutsToStrongCsv } from './strong'
 
 export interface ImportSummary {
@@ -32,12 +34,13 @@ export async function importStrongCsv(text: string): Promise<ImportSummary> {
 
 export async function exportStrongCsv(): Promise<string> {
   const [workouts, exercises] = await Promise.all([db.workouts.toArray(), db.exercises.toArray()])
-  return workoutsToStrongCsv(workouts, new Map(exercises.map((e) => [e.id, e.name])))
+  return workoutsToStrongCsv(workouts, new Map(exercises.map((e) => [e.id, strongName(e)])))
 }
 
 export interface Backup {
   app: 'strong2'
-  version: 1
+  /** 1: before the exercise catalog (exercises named as in Strong). 2: exercises from the catalog. */
+  version: 1 | 2
   exportedAt: number
   exercises: Exercise[]
   workouts: Workout[]
@@ -50,7 +53,7 @@ export async function createBackup(): Promise<Backup> {
     db.workouts.toArray(),
     db.templates.toArray(),
   ])
-  return { app: 'strong2', version: 1, exportedAt: Date.now(), exercises, workouts, templates }
+  return { app: 'strong2', version: 2, exportedAt: Date.now(), exercises, workouts, templates }
 }
 
 function isBackup(x: unknown): x is Backup {
@@ -73,21 +76,15 @@ export async function restoreBackup(text: string): Promise<{ workouts: number }>
     throw new Error('El archivo no es una copia de seguridad válida.')
   }
   if (!isBackup(data)) throw new Error('El archivo no es una copia de seguridad de esta app.')
-  const backup = data
+  // Older copies get the same changes the database got when the app updated: one set per side for
+  // unilateral exercises (database version 2) and, before the catalog, its exercises (version 3).
+  const sides = { ...data, workouts: data.workouts.map(expandWorkoutSides), templates: data.templates.map(expandTemplateSides) }
+  const backup = (data.version ?? 1) < 2 ? migrateToCatalog(sides) : sides
   await db.transaction('rw', db.exercises, db.workouts, db.templates, async () => {
     await Promise.all([db.exercises.clear(), db.workouts.clear(), db.templates.clear()])
-    // Exercise names are unique in the database; keep the first of any duplicates.
-    const seen = new Set<string>()
-    const exercises = backup.exercises.filter((e) => {
-      const k = e.name
-      if (seen.has(k)) return false
-      seen.add(k)
-      return true
-    })
-    await db.exercises.bulkAdd(exercises)
-    // Backups from when a unilateral set was one row for both sides get one set per side.
-    await db.workouts.bulkAdd(backup.workouts.map(expandWorkoutSides))
-    await db.templates.bulkAdd(backup.templates.map(expandTemplateSides))
+    await db.exercises.bulkAdd(backup.exercises)
+    await db.workouts.bulkAdd(backup.workouts)
+    await db.templates.bulkAdd(backup.templates)
   })
   return { workouts: backup.workouts.length }
 }

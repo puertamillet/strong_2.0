@@ -35,6 +35,7 @@ export const MUSCLE_GROUPS = {
 } as const satisfies Record<string, readonly string[]>
 export type MuscleGroup = keyof typeof MUSCLE_GROUPS
 export type Muscle = (typeof MUSCLE_GROUPS)[MuscleGroup][number]
+export const MUSCLE_GROUP_NAMES = Object.keys(MUSCLE_GROUPS) as MuscleGroup[]
 export const MUSCLES: readonly Muscle[] = Object.values(MUSCLE_GROUPS).flat()
 
 export function muscleGroup(muscle: Muscle): MuscleGroup {
@@ -104,6 +105,43 @@ const BY_STRONG_NAME = new Map(CATALOG.map((e) => [normalize(e.strong), e]))
 /** The catalog entry for a name as Strong writes it, e.g. "Bench Press (Barbell)". */
 export function catalogEntry(strongName: string): CatalogEntry | undefined {
   return BY_STRONG_NAME.get(normalize(strongName.trim()))
+}
+
+/** One exercise of the catalog: the rows that share name, equipment and laterality, with all their Strong names. */
+export interface CatalogExercise extends Omit<CatalogEntry, 'strong'> {
+  strongNames: string[]
+}
+
+export const CATALOG_EXERCISES: readonly CatalogExercise[] = (() => {
+  const byKey = new Map<string, CatalogExercise>()
+  for (const { strong, ...entry } of CATALOG) {
+    const found = byKey.get(catalogKey(entry))
+    if (found) found.strongNames.push(strong)
+    else byKey.set(catalogKey(entry), { ...entry, strongNames: [strong] })
+  }
+  return [...byKey.values()]
+})()
+
+const BY_KEY = new Map(CATALOG_EXERCISES.map((e) => [catalogKey(e), e]))
+
+/** The catalog exercise for a name as Strong writes it, with every Strong name it has. */
+export function catalogExercise(strongName: string): CatalogExercise | undefined {
+  const entry = catalogEntry(strongName)
+  return entry && BY_KEY.get(catalogKey(entry))
+}
+
+/**
+ * The catalog exercise for a name as Strong writes it or, when only one catalog exercise has it, as
+ * this app does ("Sentadilla hack"). With a laterality, the variant done that way: the catalog's, or
+ * the same exercise with that laterality when the catalog has no such variant.
+ */
+export function findCatalogExercise(name: string, laterality?: Laterality): CatalogExercise | undefined {
+  const sameName = CATALOG_EXERCISES.filter(
+    (c) => normalize(c.name) === normalize(name.trim()) && (!laterality || c.laterality === laterality),
+  )
+  const found = catalogExercise(name) ?? (sameName.length === 1 ? sameName[0] : undefined)
+  if (!found || !laterality || laterality === found.laterality) return found
+  return BY_KEY.get(catalogKey({ ...found, laterality })) ?? { ...found, laterality }
 }
 
 /**

@@ -21,6 +21,11 @@
   --chart-1: #0a7cff;
   --pr: #8a5800;
   --seg-selected: #ffffff;
+  /* Body figure: the body, its outline, and the muscles that also work (the main ones use --accent). */
+  --body-fill: #c9c9cf;
+  --body-line: #a1a1a8;
+  --body-hair: #8e8e93;
+  --body-secondary: #8cc0ff;
   --radius: 14px;
   --tab-h: 58px;
   color-scheme: light dark;
@@ -48,6 +53,10 @@
     --backoff: #4dd0e1;
     --sticky-bg: #4a3f0c;
     --sticky-text: #ffe98a;
+    --body-fill: #48484d;
+    --body-line: #6e6e75;
+    --body-hair: #2c2c2e;
+    --body-secondary: #1d5a99;
   }
 }
 
@@ -1426,10 +1435,6 @@ details.table-view summary {
   line-height: 1.2;
 }
 
-.detail-subtitle {
-  margin: 4px 0 0;
-}
-
 .chart-card {
   display: flex;
   flex-direction: column;
@@ -1525,4 +1530,284 @@ details.table-view summary {
   text-align: left;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+/* Exercise catalog: search, filter chips, classification boxes */
+.exercise-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* One line of chips that scrolls sideways, as in the Fitness app. */
+.filter-chips {
+  --gutter: 16px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 0 var(--gutter);
+}
+
+.sheet-head .filter-chips {
+  --gutter: 10px;
+}
+
+.filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip[aria-pressed='true'],
+.chip.on {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.filter-chips.sub .chip {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.filter-chips.sub .chip[aria-pressed='true'] {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.exercise-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.exercise-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.exercise-row small.missing {
+  color: var(--warmup);
+}
+
+.tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.exercise-head .exercise-link,
+.summary-exercise .exercise-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.detail-subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+/* Exercise form */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.form label.invalid,
+.field.invalid .field-label {
+  color: var(--danger);
+}
+
+.form label.invalid input,
+.form label.invalid select {
+  box-shadow: inset 0 0 0 1.5px var(--danger);
+}
+
+.field.invalid .segmented {
+  box-shadow: 0 0 0 1.5px var(--danger);
+}
+
+.field.invalid .muscle-chips {
+  outline: 1.5px solid var(--danger);
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+
+.form .chip {
+  background: var(--surface);
+}
+
+.form .chip[aria-pressed='true'] {
+  background: var(--accent);
+}
+
+.muscle-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.muscle-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.muscle-row-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-section .field-label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* Exercise page: body figure and muscles */
+.about-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.body-figure {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-height: 240px;
+}
+
+.body-figure figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.body-view {
+  width: 100%;
+  height: 300px;
+}
+
+.body-outline {
+  fill: none;
+  stroke: var(--body-line);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.body-body {
+  fill: var(--body-fill);
+}
+
+.body-hair {
+  fill: var(--body-hair);
+}
+
+.body-primary {
+  fill: var(--accent);
+}
+
+.body-secondary {
+  fill: var(--body-secondary);
+}
+
+.muscle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.muscle-list dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.muscle-list dd {
+  margin: 2px 0 0;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.swatch.primary {
+  background: var(--accent);
+}
+
+.swatch.secondary {
+  background: var(--body-secondary);
+}
+
+.detail-footnote {
+  margin: 8px 4px 0;
+}
+
+.pre-line {
+  white-space: pre-line;
+  margin: 6px 0 0;
 }

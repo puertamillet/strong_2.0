@@ -15,6 +15,8 @@ import {
   saveFile,
   type ImportSummary,
 } from '../lib/backup'
+import { setBodyFigure, useBodyFigure } from '../lib/bodyFigure'
+import { exerciseLabel } from '../lib/exercises'
 import { fmtDate, fmtDateTime } from '../lib/format'
 import { setKeepAwake, useKeepAwakeSetting, wakeLockSupported } from '../lib/keepAwake'
 import { disablePush, enablePush, scheduleRestPush, usePushStatus, type PushStatus } from '../lib/push'
@@ -49,6 +51,7 @@ export function SettingsPage() {
   const soundInSilentMode = useSoundInSilentMode()
   const push = usePushStatus()
   const rest = useRestTimer()
+  const bodyFigure = useBodyFigure()
   const [pushBusy, setPushBusy] = useState(false)
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [lastBackup, setLastBackup] = useState(getLastBackup)
@@ -86,7 +89,7 @@ export function SettingsPage() {
         names + '.',
         plan.replaced.length ? `Sustituyen a las que ya tienes con el mismo nombre: ${plan.replaced.join(', ')}.` : '',
         plan.newExercises.length
-          ? `Ejercicios nuevos: ${plan.newExercises.map((e) => e.name).join(', ')}.`
+          ? `Ejercicios nuevos: ${plan.newExercises.map(exerciseLabel).join(', ')}.`
           : '',
       ]
       const n = plan.templates.length
@@ -257,6 +260,26 @@ export function SettingsPage() {
             Probar el aviso
           </button>
         )}
+      </section>
+
+      <section className="card settings-section">
+        <h2>Ejercicios</h2>
+        <span className="field-label" id="figure-label">
+          Figura en la ficha del ejercicio
+        </span>
+        <div className="segmented" role="group" aria-labelledby="figure-label">
+          {(
+            [
+              ['male', 'Hombre'],
+              ['female', 'Mujer'],
+            ] as const
+          ).map(([value, label]) => (
+            <button key={value} aria-pressed={bodyFigure === value} onClick={() => setBodyFigure(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="muted small-text">La ficha de cada ejercicio muestra en ella los músculos que trabaja.</p>
       </section>
 
       <section className="card settings-section">
