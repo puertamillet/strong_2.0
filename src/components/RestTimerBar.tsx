@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fmtClock } from '../lib/format'
-import { restTimer, signalRestOver, useRestTimer } from '../lib/restTimer'
+import { REST_STEP, restTimer, signalRestOver, useRestTimer } from '../lib/restTimer'
 
 export function RestTimerBar() {
   const timer = useRestTimer()
@@ -27,15 +27,15 @@ export function RestTimerBar() {
   return (
     <div className="rest-bar" role="timer" aria-label="Descanso">
       <div className="rest-progress" style={{ width: `${progress * 100}%` }} />
-      <button className="rest-btn" onClick={() => restTimer.adjust(-15)}>
-        −15
+      <button className="rest-btn" aria-label={`Quitar ${REST_STEP} segundos`} onClick={() => restTimer.adjust(-REST_STEP)}>
+        −{REST_STEP}
       </button>
       <div className="rest-time">
         <small>Descanso</small>
         <strong>{fmtClock(remaining)}</strong>
       </div>
-      <button className="rest-btn" onClick={() => restTimer.adjust(15)}>
-        +15
+      <button className="rest-btn" aria-label={`Añadir ${REST_STEP} segundos`} onClick={() => restTimer.adjust(REST_STEP)}>
+        +{REST_STEP}
       </button>
       <button className="rest-btn skip" onClick={() => restTimer.stop()}>
         Saltar

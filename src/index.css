@@ -727,6 +727,11 @@ h3 {
   flex-shrink: 0;
 }
 
+.app-version {
+  text-align: center;
+  margin: 4px 0 0;
+}
+
 .import-summary {
   display: flex;
   flex-direction: column;

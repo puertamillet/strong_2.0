@@ -60,6 +60,19 @@ export function fmtMediumDate(ts: number): string {
   return mediumDateFmt.format(ts)
 }
 
+const dateTimeFmt = new Intl.DateTimeFormat('es-ES', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+/** e.g. "10 nov 2026, 13:35" */
+export function fmtDateTime(ts: number): string {
+  return dateTimeFmt.format(ts)
+}
+
 /** Label shown in the "Serie" column: W, D, F, or the working-set number. */
 export function setLabel(type: SetType, workingIndex: number): string {
   switch (type) {

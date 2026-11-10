@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtClock, fmtNumber, fmtSet, parseNum, setLabel } from '../lib/format'
+import { fmtClock, fmtDateTime, fmtNumber, fmtSet, parseNum, setLabel } from '../lib/format'
 import { guessCategory } from '../seed'
 
 describe('format', () => {
@@ -20,6 +20,11 @@ describe('format', () => {
     expect(fmtSet({ weight: 0, reps: 12 })).toBe('12 reps')
     expect(fmtClock(90)).toBe('1:30')
     expect(fmtClock(3725)).toBe('1:02:05')
+  })
+
+  it('formats date and time for the app version', () => {
+    expect(fmtDateTime(new Date(2026, 10, 10, 13, 35).getTime())).toBe('10 nov 2026, 13:35')
+    expect(fmtDateTime(new Date(2026, 8, 3, 9, 5).getTime())).toBe('3 sept 2026, 09:05')
   })
 
   it('labels sets like Strong', () => {

@@ -4,7 +4,8 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 
 ## Funciones
 
-- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, drop set, al fallo) y temporizador de descanso por ejercicio.
+- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, drop set, al fallo) y temporizador de descanso por ejercicio, con botones de −10 y +10 s y una campana de ring al terminar (se puede probar en Ajustes).
+- La pantalla no se apaga sola durante el entreno (opción en Ajustes, activada por defecto).
 - Plantillas de rutina: crear, editar, empezar un entreno desde una plantilla y actualizarla al terminar.
 - Catálogo de ejercicios con buscador y grupos musculares.
 - Historial de entrenos (editable).
@@ -17,6 +18,8 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 ## Publicación
 
 Cada push a `main` publica la app en GitHub Pages (`.github/workflows/deploy.yml`): https://puertamillet.github.io/strong_2.0/
+
+La app instalada busca una versión nueva al abrirse, al volver a ella y cada hora, y se recarga sola cuando la encuentra. Al final de Ajustes aparece la versión instalada (commit y fecha de compilación).
 
 ## Desarrollo
 
