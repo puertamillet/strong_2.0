@@ -1,15 +1,8 @@
 import { Fragment, useMemo, useState } from 'react'
-import {
-  restAfter,
-  restBetweenSides,
-  type Exercise,
-  type RepRange,
-  type SetType,
-  type WorkoutExercise,
-  type WorkoutSet,
-} from '../db'
-import { fmtClock, fmtNumber, fmtRange, fmtSet, parseRange, SET_TYPE_NAMES, setLabels } from '../lib/format'
-import { restTimer } from '../lib/restTimer'
+import { restAfter, type Exercise, type RepRange, type SetType, type WorkoutExercise, type WorkoutSet } from '../db'
+import { fmtClock, fmtNumber, fmtRange, fmtRest, fmtSet, parseRange, SET_TYPE_NAMES, setLabels } from '../lib/format'
+import { restTimer, useRestTimer } from '../lib/restTimer'
+import { useNow } from '../lib/useNow'
 import { isPR, nextSet, type ExerciseContext } from '../lib/workouts'
 import { confirmDialog, pickDuration } from '../lib/dialog'
 import { Icon } from './icons'
@@ -27,6 +20,8 @@ interface CardProps {
   exercise?: Exercise
   context?: ExerciseContext
   mode: CardMode
+  /** In the workout in progress: identifies the exercise, so a running rest shows under its set. */
+  restKey?: string
   isFirst: boolean
   isLast: boolean
   onChange: (fn: (we: WorkoutExercise) => void) => void
@@ -68,24 +63,25 @@ function sharedRest(we: WorkoutExercise): number | null {
   return rests.every((r) => r === rests[0]) ? rests[0] : null
 }
 
-function withoutSides(s: WorkoutSet): WorkoutSet {
-  const copy = { ...s }
-  delete copy.sides
-  delete copy.sideRest
-  delete copy.second
-  delete copy.firstDone
-  return copy
-}
-
-export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onChange, onMove, onRemove, onOpenExercise }: CardProps) {
+export function ExerciseCard({
+  we,
+  exercise,
+  context,
+  mode,
+  restKey,
+  isFirst,
+  isLast,
+  onChange,
+  onMove,
+  onRemove,
+  onOpenExercise,
+}: CardProps) {
   const previous = context?.last
   const [showNotes, setShowNotes] = useState(Boolean(we.notes))
   const [showSticky, setShowSticky] = useState(Boolean(we.stickyNote))
   const placeholders = useMemo(() => placeholdersFor(we, previous), [we, previous])
   const labels = setLabels(we.sets)
   const name = exercise?.name ?? 'Ejercicio eliminado'
-  const unilateral = we.sets.some((s) => s.sides === 2)
-  const allRest = sharedRest(we)
 
   async function onAction(action: string) {
     switch (action) {
@@ -101,10 +97,8 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
       case 'sticky':
         setShowSticky(true)
         break
-      case 'sides':
-        onChange((e) => {
-          e.sets = e.sets.map((s) => (unilateral ? withoutSides(s) : { ...s, sides: 2 }))
-        })
+      case 'rests':
+        await editAllRests()
         break
       case 'remove':
         if (
@@ -121,8 +115,9 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
     }
   }
 
+  /** One rest for every set (they can be changed one by one afterwards). */
   async function editAllRests() {
-    const v = await pickDuration('Descanso de todas las series', allRest ?? we.restSeconds, { message: name })
+    const v = await pickDuration('Descanso de todas las series', sharedRest(we) ?? we.restSeconds, { message: name })
     if (v === null) return
     onChange((e) => {
       e.restSeconds = v
@@ -130,25 +125,20 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
     })
   }
 
-  async function editRest(si: number, betweenSides: boolean) {
-    const s = we.sets[si]
-    const current = betweenSides ? restBetweenSides(s, we) : restAfter(s, we)
-    const title = betweenSides ? 'Descanso entre lados' : 'Descanso'
-    const v = await pickDuration(title, current, { message: `${name} · serie ${labels[si]}` })
+  async function editRest(si: number) {
+    const v = await pickDuration('Descanso', restAfter(we.sets[si], we), { message: `${name} · serie ${labels[si]}` })
     if (v === null) return
     onChange((e) => {
-      if (betweenSides) e.sets[si].sideRest = v
-      else e.sets[si].rest = v
+      e.sets[si].rest = v
     })
   }
 
-  /** Ticks a set, or one side of a unilateral set (the set is done with the second side). */
+  /** Ticks a set (taking the placeholder values if none were typed) and starts its rest. */
   function toggleDone(si: number) {
     const set = we.sets[si]
     if (set.done) {
       onChange((e) => {
         e.sets[si].done = false
-        delete e.sets[si].firstDone
       })
       return
     }
@@ -156,29 +146,16 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
     const weight = set.weight ?? ph?.weight ?? null
     const reps = set.reps ?? ph?.reps ?? null
     if (reps === null) return
-    const finishing = set.sides !== 2 || Boolean(set.firstDone)
     onChange((e) => {
       const s = e.sets[si]
       s.weight = weight
       s.reps = reps
-      if (s.second) s.second = { weight: s.second.weight ?? weight, reps: s.second.reps ?? reps }
-      if (finishing) {
-        s.done = true
-        delete s.firstDone
-      } else {
-        s.firstDone = true
-      }
+      s.done = true
     })
     if (mode === 'active') {
-      const seconds = finishing ? restAfter(set, we) : restBetweenSides(set, we)
-      if (seconds > 0) restTimer.start(seconds)
+      const seconds = restAfter(set, we)
+      if (seconds > 0) restTimer.start(seconds, restKey === undefined ? undefined : `${restKey}:${si}`)
     }
-  }
-
-  function checkLabel(s: WorkoutSet): string {
-    if (s.done) return 'Desmarcar serie'
-    if (s.sides !== 2) return 'Marcar serie'
-    return s.firstDone ? 'Marcar el segundo lado' : 'Marcar el primer lado'
   }
 
   return (
@@ -195,7 +172,7 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
             </option>
             {!showSticky && <option value="sticky">Añadir nota fija</option>}
             {!showNotes && <option value="notes">Añadir nota</option>}
-            <option value="sides">{unilateral ? 'Hacerlo bilateral' : 'Hacerlo unilateral (por lados)'}</option>
+            <option value="rests">Cambiar todos los descansos</option>
             {!isFirst && <option value="up">Mover arriba</option>}
             {!isLast && <option value="down">Mover abajo</option>}
             <option value="remove">Quitar ejercicio</option>
@@ -224,15 +201,9 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
         />
       )}
 
-      <div className="exercise-meta">
-        <button className="select-chip" onClick={() => void editAllRests()} aria-label="Descanso de todas las series">
-          <Icon name="timer" size={16} /> {allRest === null ? 'Varios' : allRest ? fmtClock(allRest) : 'Sin descanso'}
-        </button>
-        {unilateral && <span className="tag">Unilateral</span>}
-        {!showNotes && previous?.notes && mode !== 'template' && (
-          <span className="muted small-text">Nota anterior: {previous.notes}</span>
-        )}
-      </div>
+      {!showNotes && previous?.notes && mode !== 'template' && (
+        <p className="muted small-text">Nota anterior: {previous.notes}</p>
+      )}
 
       {showNotes && (
         <textarea
@@ -259,11 +230,9 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
       {we.sets.map((s, si) => {
         const ph = placeholders[si]
         const fromPrevious = ph && previous?.sets.includes(ph) ? ph : undefined
-        const twoSided = s.sides === 2
-        const state = s.done ? 'done' : s.firstDone ? 'half' : ''
         return (
           <Fragment key={si}>
-            <div className={`set-grid set-row ${state}`}>
+            <div className={`set-grid set-row ${s.done ? 'done' : ''}`}>
               <label className={`set-type type-${s.type}`}>
                 {labels[si]}
                 <select
@@ -272,12 +241,8 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
                   onChange={(e) => {
                     const v = e.target.value
                     onChange((x) => {
-                      const set = x.sets[si]
                       if (v === 'delete') x.sets.splice(si, 1)
-                      else if (v === 'second') {
-                        if (set.second) delete set.second
-                        else set.second = { weight: set.weight, reps: set.reps }
-                      } else set.type = v as SetType
+                      else x.sets[si].type = v as SetType
                     })
                   }}
                 >
@@ -286,9 +251,6 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
                       {SET_TYPE_NAMES[t]}
                     </option>
                   ))}
-                  {twoSided && (
-                    <option value="second">{s.second ? 'Mismos valores en los dos lados' : 'Valores distintos por lado'}</option>
-                  )}
                   <option value="delete">Eliminar serie</option>
                 </select>
               </label>
@@ -348,52 +310,22 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
                   <Icon name="close" size={16} />
                 </button>
               ) : (
-                <button className={`check-btn ${state === 'done' ? 'on' : state}`} aria-label={checkLabel(s)} onClick={() => toggleDone(si)}>
+                <button
+                  className={`check-btn ${s.done ? 'on' : ''}`}
+                  aria-label={s.done ? 'Desmarcar serie' : 'Marcar serie'}
+                  onClick={() => toggleDone(si)}
+                >
                   ✓
                 </button>
               )}
             </div>
-            {twoSided && s.second && (
-              <div className={`set-grid set-row second-row ${state}`}>
-                <span className="side-label">2º lado</span>
-                <span />
-                <NumInput
-                  className="cell-input"
-                  ariaLabel="Peso del segundo lado"
-                  value={s.second.weight}
-                  placeholder={fmtNumber(s.weight)}
-                  onChange={(v) =>
-                    onChange((x) => {
-                      x.sets[si].second = { weight: v, reps: x.sets[si].second?.reps ?? null }
-                    })
-                  }
-                />
-                <NumInput
-                  className="cell-input"
-                  ariaLabel="Repeticiones del segundo lado"
-                  decimal={false}
-                  value={s.second.reps}
-                  placeholder={fmtNumber(s.reps)}
-                  onChange={(v) =>
-                    onChange((x) => {
-                      x.sets[si].second = { weight: x.sets[si].second?.weight ?? null, reps: v }
-                    })
-                  }
-                />
-                <span />
-              </div>
-            )}
-            <div className="rest-row">
-              {twoSided && (
-                <RestChip
-                  seconds={restBetweenSides(s, we)}
-                  label="entre lados"
-                  ariaLabel={`Descanso entre lados de la serie ${labels[si]}`}
-                  onClick={() => void editRest(si, true)}
-                />
-              )}
-              <RestChip seconds={restAfter(s, we)} ariaLabel={`Descanso tras la serie ${labels[si]}`} onClick={() => void editRest(si, false)} />
-            </div>
+            <RestLine
+              seconds={restAfter(s, we)}
+              done={s.done}
+              timerKey={restKey === undefined ? undefined : `${restKey}:${si}`}
+              ariaLabel={`Descanso tras la serie ${labels[si]}`}
+              onClick={() => void editRest(si)}
+            />
           </Fragment>
         )
       })}
@@ -411,10 +343,42 @@ export function ExerciseCard({ we, exercise, context, mode, isFirst, isLast, onC
   )
 }
 
-function RestChip({ seconds, label, ariaLabel, onClick }: { seconds: number; label?: string; ariaLabel: string; onClick: () => void }) {
+/**
+ * The rest after a set, as in Strong: a line across the card with its time. While that rest is
+ * running it becomes a bar that empties as the time passes, with the time left.
+ */
+function RestLine({
+  seconds,
+  done,
+  timerKey,
+  ariaLabel,
+  onClick,
+}: {
+  seconds: number
+  done: boolean
+  timerKey?: string
+  ariaLabel: string
+  onClick: () => void
+}) {
+  const timer = useRestTimer()
+  const running = timer !== null && timerKey !== undefined && timer.key === timerKey
+  const now = useNow(250, running)
+  if (running) {
+    const remaining = Math.min(timer.total, Math.max(0, (timer.endsAt - now) / 1000))
+    return (
+      <button className="rest-line running" role="timer" aria-label={`Descanso: quedan ${fmtClock(remaining)}`} onClick={onClick}>
+        <span className="rest-fill" style={{ width: `${(remaining / timer.total) * 100}%` }} />
+        <span className="rest-time-left">{fmtClock(remaining)}</span>
+      </button>
+    )
+  }
   return (
-    <button className={`rest-chip ${seconds ? '' : 'zero'}`} aria-label={`${ariaLabel}: ${fmtClock(seconds)}`} onClick={onClick}>
-      {label ?? <Icon name="timer" size={14} />} {fmtClock(seconds)}
+    <button
+      className={`rest-line ${done ? 'done' : ''} ${seconds ? '' : 'zero'}`}
+      aria-label={`${ariaLabel}: ${fmtRest(seconds)}`}
+      onClick={onClick}
+    >
+      <span>{fmtRest(seconds)}</span>
     </button>
   )
 }

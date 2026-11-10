@@ -1,4 +1,5 @@
 import { db, type Exercise, type Template, type Workout } from '../db'
+import { expandTemplateSides, expandWorkoutSides } from './legacy'
 import { parseStrongCsv, workoutsToStrongCsv } from './strong'
 
 export interface ImportSummary {
@@ -84,8 +85,9 @@ export async function restoreBackup(text: string): Promise<{ workouts: number }>
       return true
     })
     await db.exercises.bulkAdd(exercises)
-    await db.workouts.bulkAdd(backup.workouts)
-    await db.templates.bulkAdd(backup.templates)
+    // Backups from when a unilateral set was one row for both sides get one set per side.
+    await db.workouts.bulkAdd(backup.workouts.map(expandWorkoutSides))
+    await db.templates.bulkAdd(backup.templates.map(expandTemplateSides))
   })
   return { workouts: backup.workouts.length }
 }

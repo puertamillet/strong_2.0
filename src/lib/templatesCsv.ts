@@ -16,7 +16,8 @@ import { fmtClock, fmtNumber, fmtRange, normalize, parseNum, parseRange, SET_TYP
 /**
  * Templates as a CSV, one row per set, so they can be written or edited in a spreadsheet and
  * loaded from Ajustes. Exercise-wide values (notes) go on any row of the exercise; consecutive
- * rows of the same template and exercise are one exercise.
+ * rows of the same template and exercise are one exercise. Unilateral exercises have one row
+ * per side, like in Strong.
  */
 export const TEMPLATE_HEADER = [
   'Plantilla',
@@ -29,13 +30,15 @@ export const TEMPLATE_HEADER = [
   'Reps',
   'Rango',
   'Descanso',
-  'Lados',
-  'Descanso entre lados',
-  'kg 2º lado',
-  'Reps 2º lado',
 ] as const
 
-type Column = (typeof TEMPLATE_HEADER)[number]
+/**
+ * Columns of files made when a unilateral set was one row for both sides. They are still read:
+ * a row with «Lados» 2 becomes two sets, one per side.
+ */
+const SIDE_COLUMNS = ['Lados', 'Descanso entre lados', 'kg 2º lado', 'Reps 2º lado'] as const
+
+type Column = (typeof TEMPLATE_HEADER)[number] | (typeof SIDE_COLUMNS)[number]
 
 /** An exercise as written in the file: the names to find it by, plus its template data. */
 export interface ParsedTemplateExercise {
@@ -43,6 +46,8 @@ export interface ParsedTemplateExercise {
   exerciseName: string
   /** Name in Spanish, from the catalog. */
   name: string
+  /** The file said it is done one side at a time (a row with «Lados» 2). */
+  unilateral?: boolean
   exercise: Omit<TemplateExercise, 'exerciseId'>
 }
 
@@ -90,13 +95,14 @@ function parseRest(text: string): number | undefined {
   return /^\d{1,4}$/.test(t) ? Number(t) : NaN
 }
 
+/** The most frequent value; the largest of a tie (a unilateral exercise rests 0:00 and 1:30 by turns). */
 function mostFrequent(values: number[]): number | undefined {
   const counts = new Map<number, number>()
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1)
   let best: number | undefined
-  for (const v of values) {
-    const n = (counts.get(v) ?? 0) + 1
-    counts.set(v, n)
-    if (best === undefined || n > (counts.get(best) ?? 0)) best = v
+  for (const [v, n] of counts) {
+    const top = best === undefined ? 0 : counts.get(best)!
+    if (n > top || (n === top && v > best!)) best = v
   }
   return best
 }
@@ -150,10 +156,17 @@ export function parseTemplatesCsv(text: string): ParsedTemplate[] {
     const set: TemplateSet = { type: type!, weight, reps }
     if (rest !== undefined) set.rest = rest
     if (range) set.range = range
-    if (sidesText === '2') {
-      set.sides = 2
-      if (sideRest !== undefined) set.sideRest = sideRest
-      if (weight2 !== null || reps2 !== null) set.second = { weight: weight2 ?? weight, reps: reps2 ?? reps }
+    const twoSided = sidesText === '2'
+    const sets: TemplateSet[] = [set]
+    if (twoSided) {
+      // One set per side: the first rests what was the rest between sides.
+      const first: TemplateSet = { ...set }
+      const firstRest = sideRest ?? rest
+      if (firstRest === undefined) delete first.rest
+      else first.rest = firstRest
+      sets.unshift(first)
+      set.weight = weight2 ?? weight
+      set.reps = reps2 ?? reps
     }
 
     const key = normalize(exerciseName || name)
@@ -172,7 +185,8 @@ export function parseTemplatesCsv(text: string): ParsedTemplate[] {
       template.exercises.push(entry)
     }
     const exercise = current.entry.exercise
-    exercise.sets.push(set)
+    exercise.sets.push(...sets)
+    if (twoSided) current.entry.unilateral = true
     if (!exercise.stickyNote && get('Nota fija')) exercise.stickyNote = get('Nota fija')
     if (!exercise.notes && get('Nota')) exercise.notes = get('Nota')
   })
@@ -195,7 +209,6 @@ export function templatesToCsv(templates: Template[], exercises: Map<string, Exe
       const exerciseName = exercise?.name ?? 'Ejercicio eliminado'
       const name = catalogEntry(exerciseName)?.name ?? exerciseName
       te.sets.forEach((s, i) => {
-        const twoSided = s.sides === 2
         rows.push([
           t.name,
           exerciseName,
@@ -207,10 +220,6 @@ export function templatesToCsv(templates: Template[], exercises: Map<string, Exe
           fmtNumber(s.reps),
           s.range ? fmtRange(s.range).replace('–', '-') : '',
           fmtClock(s.rest ?? te.restSeconds),
-          twoSided ? 2 : 1,
-          twoSided ? fmtClock(s.sideRest ?? s.rest ?? te.restSeconds) : '',
-          twoSided && s.second ? fmtNumber(s.second.weight) : '',
-          twoSided && s.second ? fmtNumber(s.second.reps) : '',
         ])
       })
     }
@@ -246,12 +255,11 @@ export function planTemplateImport(parsed: ParsedTemplate[], existing: Template[
       byName.get(normalize(p.name)) ??
       (candidates?.length === 1 ? candidates[0] : undefined)
     if (found) return found
-    const unilateral = p.exercise.sets.some((s) => s.sides === 2)
     const created: Exercise = {
       id: newId(),
       name: p.exerciseName,
       category: guessCategory(p.exerciseName),
-      laterality: unilateral ? 'Unilateral' : (catalogEntry(p.exerciseName)?.laterality ?? 'Bilateral'),
+      laterality: p.unilateral ? 'Unilateral' : (catalogEntry(p.exerciseName)?.laterality ?? 'Bilateral'),
       createdAt: Date.now(),
     }
     byName.set(normalize(created.name), created)

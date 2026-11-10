@@ -1,21 +1,30 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { Exercise, Template } from '../db'
-import { parseTemplatesCsv, planTemplateImport, templatesToCsv } from '../lib/templatesCsv'
+import { parseTemplatesCsv, planTemplateImport, TEMPLATE_HEADER, templatesToCsv } from '../lib/templatesCsv'
 
 // A spreadsheet export in Spanish: ";" between columns, decimal commas, a note on two lines.
+// The unilateral exercise has a row per side, resting 0:00 between the sides.
 const SAMPLE = [
+  'Plantilla;Exercise Name;Ejercicio;Nota fija;Nota;Serie;kg;Reps;Rango;Descanso',
+  'Empuje;Bench Press (Barbell);Press de banca;"52 de altura\nBarra recta";Hacerlo despacio;Calentamiento;20;6;;1:00',
+  'Empuje;Bench Press (Barbell);Press de banca;;;Top set;95;5;4-6;3:30',
+  'Empuje;Bench Press (Barbell);Press de banca;;;Back off;85;7;6-8;180',
+  'Empuje;Unilateral Triceps Extension (Cable);Extensión de tríceps;;;Normal;16,25;10;9-12;0:00',
+  'Empuje;Unilateral Triceps Extension (Cable);Extensión de tríceps;;;Normal;16,25;10;9-12;1:30',
+  'Pierna;;Sentadilla hack;;;;100;8;8;2:00',
+].join('\n')
+
+// A file from when the two sides of a set were one row.
+const TWO_SIDED = [
   'Plantilla;Exercise Name;Ejercicio;Nota fija;Nota;Serie;kg;Reps;Rango;Descanso;Lados;Descanso entre lados;kg 2º lado;Reps 2º lado',
-  'Empuje;Bench Press (Barbell);Press de banca;"52 de altura\nBarra recta";Hacerlo despacio;Calentamiento;20;6;;1:00;;;;',
-  'Empuje;Bench Press (Barbell);Press de banca;;;Top set;95;5;4-6;3:30;;;;',
-  'Empuje;Bench Press (Barbell);Press de banca;;;Back off;85;7;6-8;180;;;;',
-  'Empuje;Unilateral Triceps Extension (Cable);Extensión de tríceps;;;Normal;16,25;10;9-12;1:30;2;0:00;;',
-  'Empuje;Unilateral Triceps Extension (Cable);Extensión de tríceps;;;Normal;15;11;9-12;1:30;2;1:30;15;9',
-  'Pierna;;Sentadilla hack;;;;100;8;8;2:00;;;;',
+  'Brazo;Curl de prueba;;;;Normal;16,25;10;9-12;1:30;2;0:00;;',
+  'Brazo;Curl de prueba;;;;Normal;15;11;;1:30;2;;15;9',
+  'Brazo;Curl de prueba;;;;Normal;15;11;;;1;;;',
 ].join('\n')
 
 describe('templates CSV', () => {
-  it('reads templates, sets, rests, sides and notes', () => {
+  it('reads templates, sets, rests and notes', () => {
     const [empuje, pierna] = parseTemplatesCsv(SAMPLE)
     expect(empuje.name).toBe('Empuje')
     expect(empuje.exercises.map((e) => e.exerciseName)).toEqual(['Bench Press (Barbell)', 'Unilateral Triceps Extension (Cable)'])
@@ -28,22 +37,38 @@ describe('templates CSV', () => {
       { type: 'backoff', weight: 85, reps: 7, rest: 180, range: [6, 8] },
     ])
     expect(empuje.exercises[1].exercise.sets).toEqual([
-      { type: 'normal', weight: 16.25, reps: 10, rest: 90, range: [9, 12], sides: 2, sideRest: 0 },
-      { type: 'normal', weight: 15, reps: 11, rest: 90, range: [9, 12], sides: 2, sideRest: 90, second: { weight: 15, reps: 9 } },
+      { type: 'normal', weight: 16.25, reps: 10, rest: 0, range: [9, 12] },
+      { type: 'normal', weight: 16.25, reps: 10, rest: 90, range: [9, 12] },
     ])
+    // As often 0:00 as 1:30: the exercise's rest is the longer one.
     expect(empuje.exercises[1].exercise.restSeconds).toBe(90)
     // Only the Spanish name: still an exercise, of type Normal by default.
     expect(pierna.exercises[0]).toMatchObject({ exerciseName: 'Sentadilla hack', name: 'Sentadilla hack' })
     expect(pierna.exercises[0].exercise.sets[0]).toEqual({ type: 'normal', weight: 100, reps: 8, rest: 120, range: [8, 8] })
   })
 
+  it('reads a row with two sides as one set per side', () => {
+    const [brazo] = parseTemplatesCsv(TWO_SIDED)
+    expect(brazo.exercises[0].unilateral).toBe(true)
+    expect(brazo.exercises[0].exercise.sets).toEqual([
+      // The first side rests what was the rest between sides; without one, the rest of the set.
+      { type: 'normal', weight: 16.25, reps: 10, rest: 0, range: [9, 12] },
+      { type: 'normal', weight: 16.25, reps: 10, rest: 90, range: [9, 12] },
+      { type: 'normal', weight: 15, reps: 11, rest: 90 },
+      { type: 'normal', weight: 15, reps: 9, rest: 90 },
+      { type: 'normal', weight: 15, reps: 11 },
+    ])
+    // A new exercise from such a file is unilateral.
+    const plan = planTemplateImport([brazo], [], [])
+    expect(plan.newExercises.map((e) => [e.name, e.laterality])).toEqual([['Curl de prueba', 'Unilateral']])
+  })
+
   it('says which row is wrong', () => {
-    const head = SAMPLE.split('\n')[0]
-    const bad = (row: string) => () => parseTemplatesCsv(`${head}\n${row}`)
-    expect(bad('Empuje;Bench Press (Barbell);;;;Superserie;20;6;;;;;;')).toThrow(/Fila 2: tipo de serie desconocido «Superserie»/)
-    expect(bad('Empuje;Bench Press (Barbell);;;;;20;6;seis;;;;;')).toThrow(/Fila 2: rango no válido/)
-    expect(bad('Empuje;Bench Press (Barbell);;;;;20;6;;1h;;;;')).toThrow(/Fila 2: descanso no válido/)
-    expect(bad('Empuje;Bench Press (Barbell);;;;;20;6;;;3;;;')).toThrow(/Fila 2: lados debe ser 1 o 2/)
+    const bad = (row: string, head = SAMPLE.split('\n')[0]) => () => parseTemplatesCsv(`${head}\n${row}`)
+    expect(bad('Empuje;Bench Press (Barbell);;;;Superserie;20;6;;')).toThrow(/Fila 2: tipo de serie desconocido «Superserie»/)
+    expect(bad('Empuje;Bench Press (Barbell);;;;;20;6;seis;')).toThrow(/Fila 2: rango no válido/)
+    expect(bad('Empuje;Bench Press (Barbell);;;;;20;6;;1h')).toThrow(/Fila 2: descanso no válido/)
+    expect(bad('Brazo;Curl de prueba;;;;;20;6;;;3;;;', TWO_SIDED.split('\n')[0])).toThrow(/Fila 2: lados debe ser 1 o 2/)
     expect(() => parseTemplatesCsv('Date,Workout Name\n1,2')).toThrow(/CSV de plantillas/)
   })
 
@@ -76,11 +101,9 @@ describe('templates CSV', () => {
       { id: 'hack', name: 'Squat (Machine)', createdAt: 0 },
     ]
     const { templates } = planTemplateImport(parseTemplatesCsv(SAMPLE), [], exercises)
-    const again = planTemplateImport(
-      parseTemplatesCsv(templatesToCsv(templates, new Map(exercises.map((e) => [e.id, e])))),
-      [],
-      exercises,
-    )
+    const csv = templatesToCsv(templates, new Map(exercises.map((e) => [e.id, e])))
+    expect(csv.split(/\r?\n/)[0]).toBe(TEMPLATE_HEADER.join(','))
+    const again = planTemplateImport(parseTemplatesCsv(csv), [], exercises)
     expect(again.templates.map((t) => [t.name, t.exercises])).toEqual(templates.map((t) => [t.name, t.exercises]))
     expect(again.newExercises).toEqual([])
   })

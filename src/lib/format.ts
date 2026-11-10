@@ -15,17 +15,11 @@ export function fmtInt(n: number): string {
   return intFmt.format(Math.round(n))
 }
 
-function fmtValues(weight: number | null, reps: number | null): string {
-  if (weight === null && reps === null) return '—'
-  if (!weight) return `${fmtNumber(reps)} reps`
-  return `${fmtNumber(weight)} kg × ${fmtNumber(reps)}`
-}
-
-/** "60 kg × 8"; a unilateral set with different sides shows both: "12,5 kg × 10 / 12,5 kg × 9". */
-export function fmtSet(s: Pick<WorkoutSet, 'weight' | 'reps' | 'second'>): string {
-  const first = fmtValues(s.weight, s.reps)
-  if (!s.second || (s.second.weight === s.weight && s.second.reps === s.reps)) return first
-  return `${first} / ${fmtValues(s.second.weight ?? s.weight, s.second.reps ?? s.reps)}`
+/** "60 kg × 8", or "12 reps" without weight. */
+export function fmtSet(s: Pick<WorkoutSet, 'weight' | 'reps'>): string {
+  if (s.weight === null && s.reps === null) return '—'
+  if (!s.weight) return `${fmtNumber(s.reps)} reps`
+  return `${fmtNumber(s.weight)} kg × ${fmtNumber(s.reps)}`
 }
 
 /** "6–8", or "8" for an exact target. */

@@ -37,13 +37,8 @@ describe('exercise stats', () => {
     expect(s[1].maxReps).toBe(12)
   })
 
-  it('counts both sides of unilateral sets in the volume', () => {
-    const w = workout('u', 14, [
-      { ...set(10, 10), sides: 2 },
-      { ...set(10, 10), sides: 2, second: { weight: 10, reps: 8 } },
-      { ...set(5, 10, 'warmup'), sides: 2 },
-    ])
-    expect(volume(w)).toBe(200 + 180)
+  it('adds up the volume of a workout, without warm-ups', () => {
+    expect(volume(history[0])).toBe(800)
   })
 
   it('finds personal records and rep maxes', () => {

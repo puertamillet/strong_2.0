@@ -4,11 +4,11 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 
 ## Funciones
 
-- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, top set, back off, drop set, al fallo) y descanso propio en cada serie, elegido con una rueda de minutos y segundos de 10 en 10. El temporizador tiene botones de −10 y +10 s y una campana de ring al terminar (se puede probar en Ajustes).
-- Ejercicios unilaterales: cada serie es una fila con los dos lados (se marca lado a lado), con descanso entre lados y valores distintos por lado si hace falta.
+- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, top set, back off, drop set, al fallo) y descanso propio en cada serie, elegido con una rueda de minutos y segundos de 10 en 10. Bajo cada serie, una línea a todo lo ancho con su descanso; al marcar la serie se convierte en una barra que se va vaciando. Abajo, el temporizador con −10 y +10 s, y un ping al terminar (con la app en pantalla; en Ajustes se puede probar y hacer que suene aunque el iPhone esté en silencio, lo que pausa la música o el podcast).
+- Ejercicios unilaterales: como en Strong, una serie por lado (el doble de series de las que son). El ejercicio guarda su lateralidad para contar las series reales por músculo.
 - Notas fijas en amarillo, siempre visibles con el ejercicio, y rangos de repeticiones por serie en las plantillas.
 - La pantalla no se apaga sola durante el entreno (opción en Ajustes, activada por defecto).
-- Plantillas de rutina: crear, editar, empezar un entreno desde una plantilla y actualizarla al terminar. Se importan y exportan en CSV (una fila por serie) desde Ajustes.
+- Plantillas de rutina: crear, editar y empezar un entreno desde una plantilla. Al terminar, si algo cambió, pregunta como Strong: actualizar solo los valores, actualizar plantilla y valores (dice qué cambia, en rojo si quita ejercicios o series) o mantener la plantilla original. Se importan y exportan en CSV (una fila por serie) desde Ajustes.
 - Catálogo de ejercicios con buscador y grupos musculares.
 - Historial de entrenos (editable).
 - Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez.

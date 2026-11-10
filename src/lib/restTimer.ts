@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { ringBell } from './bell'
+import { primeAudio, signalRestOver } from './sound'
 
 /** Seconds added or taken away by the rest bar's − and + buttons. */
 export const REST_STEP = 10
@@ -11,6 +11,8 @@ export const REST_STEP = 10
 export interface RestTimerState {
   endsAt: number
   total: number
+  /** The set whose rest this is (see ExerciseCard), to show the countdown under it. */
+  key?: string
 }
 
 const KEY = 'strong2.restTimer'
@@ -40,17 +42,17 @@ function set(next: RestTimerState | null) {
 }
 
 export const restTimer = {
-  start(seconds: number) {
+  start(seconds: number, key?: string) {
     if (seconds <= 0) return
     primeAudio()
-    set({ endsAt: Date.now() + seconds * 1000, total: seconds })
+    set({ endsAt: Date.now() + seconds * 1000, total: seconds, key })
   },
   adjust(deltaSeconds: number) {
     if (!state) return
     primeAudio()
     const endsAt = state.endsAt + deltaSeconds * 1000
     if (endsAt <= Date.now()) set(null)
-    else set({ endsAt, total: Math.max(1, state.total + deltaSeconds) })
+    else set({ ...state, endsAt, total: Math.max(1, state.total + deltaSeconds) })
   },
   stop() {
     set(null)
@@ -67,8 +69,8 @@ export function useRestTimer(): RestTimerState | null {
 }
 
 /**
- * Rings the bell when the rest is over. Mounted once for the whole app, so it works
- * whether the workout is open, minimised or behind another sheet.
+ * Pings when the rest is over. Mounted once for the whole app, so it works whether the
+ * workout is open, minimised or behind another sheet.
  */
 export function useRestAlarm(): void {
   const timer = useRestTimer()
@@ -83,41 +85,4 @@ export function useRestAlarm(): void {
     }, 250)
     return () => clearInterval(t)
   }, [timer])
-}
-
-let audio: AudioContext | null = null
-
-/**
- * Gets the shared audio context running. iOS only lets a page play sound from a
- * context started during a tap, so this runs when a rest starts (the tap on ✓) and
- * the bell reuses the same context when the rest is over.
- */
-export function primeAudio(): AudioContext | null {
-  try {
-    if (!audio) {
-      const Ctx =
-        window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-      if (!Ctx) return null
-      audio = new Ctx()
-    }
-    if (audio.state !== 'running') void audio.resume().catch(() => {})
-    return audio
-  } catch {
-    return null
-  }
-}
-
-/** Boxing-ring bell, plus a vibration where supported (not on iPhone), when the rest is over. */
-export function signalRestOver(): void {
-  try {
-    navigator.vibrate?.([200, 100, 200])
-  } catch {
-    // ignore
-  }
-  try {
-    const ctx = primeAudio()
-    if (ctx) ringBell(ctx)
-  } catch {
-    // Audio not available.
-  }
 }
