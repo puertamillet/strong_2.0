@@ -8,9 +8,9 @@ import {
   type TemplateExercise,
   type TemplateSet,
 } from '../db'
-import { guessCategory } from '../seed'
-import { catalogEntry } from './catalog'
+import { catalogEntry, findCatalogExercise } from './catalog'
 import { parseCsv, toCsv } from './csv'
+import { exerciseFinder, exerciseFromCatalog, exerciseKey, exerciseLabel, strongName } from './exercises'
 import { fmtClock, fmtNumber, fmtRange, normalize, parseNum, parseRange, SET_TYPE_NAMES } from './format'
 
 /**
@@ -206,8 +206,8 @@ export function templatesToCsv(templates: Template[], exercises: Map<string, Exe
   for (const t of templates) {
     for (const te of t.exercises) {
       const exercise = exercises.get(te.exerciseId)
-      const exerciseName = exercise?.name ?? 'Ejercicio eliminado'
-      const name = catalogEntry(exerciseName)?.name ?? exerciseName
+      const exerciseName = exercise ? strongName(exercise) : 'Ejercicio eliminado'
+      const name = exercise ? exerciseLabel(exercise) : exerciseName
       te.sets.forEach((s, i) => {
         rows.push([
           t.name,
@@ -237,34 +237,33 @@ export interface TemplateImportPlan {
 
 /**
  * Works out what importing the file would do: templates with the same name (ignoring case and
- * accents) are replaced, keeping their id; exercises are found by name and created if missing.
+ * accents) are replaced, keeping their id; exercises are found by any of their names (Strong's, the
+ * app's or the catalog's) and created if missing, with the catalog's data when it has them.
  */
 export function planTemplateImport(parsed: ParsedTemplate[], existing: Template[], exercises: Exercise[]): TemplateImportPlan {
-  const byName = new Map(exercises.map((e) => [normalize(e.name), e]))
+  const find = exerciseFinder(exercises)
+  const created = new Map<string, Exercise>()
   const newExercises: Exercise[] = []
-  // Exercises still named as in Strong, by their name in Spanish (only when that name is not ambiguous).
-  const bySpanishName = new Map<string, Exercise[]>()
-  for (const e of exercises) {
-    const spanish = catalogEntry(e.name)?.name
-    if (spanish) bySpanishName.set(normalize(spanish), [...(bySpanishName.get(normalize(spanish)) ?? []), e])
-  }
   const exerciseFor = (p: ParsedTemplateExercise): Exercise => {
-    const candidates = bySpanishName.get(normalize(p.name))
-    const found =
-      byName.get(normalize(p.exerciseName)) ??
-      byName.get(normalize(p.name)) ??
-      (candidates?.length === 1 ? candidates[0] : undefined)
+    const found = find(p.exerciseName) ?? find(p.name)
     if (found) return found
-    const created: Exercise = {
-      id: newId(),
-      name: p.exerciseName,
-      category: guessCategory(p.exerciseName),
-      laterality: p.unilateral ? 'Unilateral' : (catalogEntry(p.exerciseName)?.laterality ?? 'Bilateral'),
-      createdAt: Date.now(),
-    }
-    byName.set(normalize(created.name), created)
-    newExercises.push(created)
-    return created
+    // Both sides in a row: done one side at a time.
+    const laterality = p.unilateral ? 'Unilateral' : undefined
+    const c = findCatalogExercise(p.exerciseName, laterality) ?? findCatalogExercise(p.name, laterality)
+    const draft: Exercise = c
+      ? exerciseFromCatalog(c, newId(), Date.now())
+      : {
+          id: newId(),
+          name: p.name,
+          laterality: laterality ?? 'Bilateral',
+          ...(p.exerciseName !== p.name && { strongNames: [p.exerciseName] }),
+          createdAt: Date.now(),
+        }
+    const again = created.get(exerciseKey(draft))
+    if (again) return again
+    created.set(exerciseKey(draft), draft)
+    newExercises.push(draft)
+    return draft
   }
 
   const existingByName = new Map(existing.map((t) => [normalize(t.name.trim()), t]))

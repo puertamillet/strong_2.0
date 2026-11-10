@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { ColumnChart } from '../components/charts'
 import { Icon } from '../components/icons'
 import { db } from '../db'
+import { exerciseLabel } from '../lib/exercises'
 import { useOpenSheet } from '../lib/sheets'
 import { fmtDate, fmtDuration, fmtInt, fmtSet, fmtShortDate } from '../lib/format'
 import { bestSet, volume, weeklyCounts, weekStart, workoutPRCounts } from '../lib/stats'
@@ -25,7 +26,7 @@ export function HistoryPage() {
     [limit],
   )
   const names = useLiveQuery(
-    async () => new Map((await db.exercises.toArray()).map((e) => [e.id, e.name] as const)),
+    async () => new Map((await db.exercises.toArray()).map((e) => [e.id, exerciseLabel(e)] as const)),
     [],
   )
   // Whole-history figures: records per workout, weekly frequency and totals.

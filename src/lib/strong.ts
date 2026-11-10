@@ -7,8 +7,9 @@ import {
   type WorkoutExercise,
   type WorkoutSet,
 } from '../db'
-import { guessCategory } from '../seed'
+import { catalogExercise } from './catalog'
 import { parseCsv, toCsv } from './csv'
+import { exerciseFinder, exerciseFromCatalog } from './exercises'
 import { normalize, parseNum } from './format'
 
 /** Column layout of Strong's "Export data" CSV. */
@@ -103,7 +104,9 @@ interface Block {
 
 /**
  * Convert a Strong CSV export into workouts. Pure: does not touch the database.
- * Exercises are matched to `existing` by name, ignoring case and accents.
+ * Exercises are matched to `existing` by any of their names (see exerciseFinder); missing ones are
+ * created, in Spanish and with their data when they are in the catalog. Each set keeps the rest that
+ * followed it. Unilateral exercises stay as in Strong, one set per side.
  */
 export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong {
   const rows = parseCsv(text)
@@ -131,21 +134,23 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
   }
   const get = (row: string[], i: number) => (i >= 0 ? (row[i] ?? '').trim() : '')
 
-  const exerciseIds = new Map(existing.map((e) => [normalize(e.name), e.id]))
+  const find = exerciseFinder(existing)
+  const created = new Map<string, Exercise>()
   const newExercises: Exercise[] = []
-  const exerciseIdFor = (name: string) => {
-    const key = normalize(name)
-    let id = exerciseIds.get(key)
-    if (!id) {
-      id = newId()
-      exerciseIds.set(key, id)
-      newExercises.push({ id, name, category: guessCategory(name), createdAt: Date.now() })
-    }
-    return id
+  const exerciseFor = (name: string): Exercise => {
+    const found = find(name) ?? created.get(normalize(name))
+    if (found) return found
+    const c = catalogExercise(name)
+    const e: Exercise = c ? exerciseFromCatalog(c, newId(), Date.now()) : { id: newId(), name, createdAt: Date.now() }
+    for (const n of c?.strongNames ?? [name]) created.set(normalize(n), e)
+    newExercises.push(e)
+    return e
   }
 
   const workouts = new Map<string, Workout>()
   const blocks = new Map<string, Block[]>()
+  /** Workouts with rest timers: in them, a set with no "Rest Timer" row after it had no rest. */
+  const timed = new Set<string>()
 
   rows.slice(1).forEach((row, i) => {
     const date = get(row, c.date)
@@ -185,7 +190,12 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
     // Strong writes a "Rest Timer" row after each set with the rest used.
     if (/^rest/i.test(order)) {
       const s = parseNum(get(row, c.seconds))
-      if (block && block.name === exerciseName && s && s > 0) block.rests.push(Math.round(s))
+      timed.add(key)
+      if (block && block.name === exerciseName && s && s > 0) {
+        block.rests.push(Math.round(s))
+        const last = block.exercise.sets[block.exercise.sets.length - 1]
+        if (last) last.rest = Math.round(s)
+      }
       return
     }
 
@@ -199,9 +209,10 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
       (type === 'warmup' && block.hasNonWarmup) ||
       (type === 'normal' && number > 0 && number <= block.lastNumber)
     if (startsNew) {
+      const exercise = exerciseFor(exerciseName)
       block = {
         name: exerciseName,
-        exercise: { exerciseId: exerciseIdFor(exerciseName), restSeconds: DEFAULT_REST_SECONDS, sets: [] },
+        exercise: { exerciseId: exercise.id, restSeconds: DEFAULT_REST_SECONDS, sets: [] },
         lastNumber: 0,
         hasNonWarmup: false,
         rests: [],
@@ -232,6 +243,7 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
   for (const [key, w] of workouts) {
     for (const b of blocks.get(key)!) {
       b.exercise.restSeconds = mostFrequent(b.rests) ?? DEFAULT_REST_SECONDS
+      if (timed.has(key)) for (const s of b.exercise.sets) s.rest ??= 0
     }
     w.exercises = w.exercises.filter((e) => e.sets.length > 0)
     if (!w.exercises.length) continue
@@ -264,7 +276,10 @@ function decimal(n: number | null | undefined): string {
   return Number.isInteger(n ?? 0) ? `${n ?? 0}.0` : String(n)
 }
 
-/** Export finished workouts in Strong's CSV format, so the data can go to other apps too. */
+/**
+ * Export finished workouts in Strong's CSV format, so the data can go to other apps too. As in Strong,
+ * a "Rest Timer" row follows each set that had a rest.
+ */
 export function workoutsToStrongCsv(workouts: Workout[], exerciseNames: Map<string, string>): string {
   const rows: (string | number)[][] = [[...STRONG_HEADER]]
   const finished = workouts.filter((w) => w.endedAt !== null).sort((a, b) => a.startedAt - b.startedAt)
@@ -275,7 +290,8 @@ export function workoutsToStrongCsv(workouts: Workout[], exerciseNames: Map<stri
     for (const e of w.exercises) {
       const name = exerciseNames.get(e.exerciseId) ?? 'Ejercicio'
       let working = 0
-      e.sets.forEach((s, i) => {
+      let firstOfExercise = true
+      const push = (s: WorkoutSet) => {
         const order =
           s.type === 'warmup' ? 'W' : s.type === 'drop' ? 'D' : s.type === 'failure' ? 'F' : String(++working)
         rows.push([
@@ -288,12 +304,20 @@ export function workoutsToStrongCsv(workouts: Workout[], exerciseNames: Map<stri
           decimal(s.reps),
           s.distance ?? 0,
           decimal(s.seconds),
-          i === 0 ? (e.notes ?? '') : '',
+          firstOfExercise ? (e.notes ?? '') : '',
           firstOfWorkout ? (w.notes ?? '') : '',
           s.rpe ?? '',
         ])
         firstOfWorkout = false
-      })
+        firstOfExercise = false
+      }
+      const rest = (seconds: number | undefined) => {
+        if (seconds) rows.push([date, w.name, duration, name, 'Rest Timer', 0, decimal(0), 0, decimal(seconds), '', '', ''])
+      }
+      for (const s of e.sets) {
+        push(s)
+        rest(s.rest)
+      }
     }
   }
   return toCsv(rows)

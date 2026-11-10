@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
+import type { Equipment, Laterality, Muscle } from './lib/catalog'
 import { expandTemplateSides, expandWorkoutSides } from './lib/legacy'
+import { migrateToCatalog } from './lib/migrations'
 
 /** Kinds of set. A top set is the first, heavier working set; the back off sets after it are lighter. */
 export type SetType = 'normal' | 'warmup' | 'top' | 'backoff' | 'drop' | 'failure'
@@ -49,15 +51,25 @@ export interface Workout {
   exerciseIds: string[]
 }
 
+/**
+ * An exercise. Name, equipment and laterality identify it: "Press de banca" with a barbell and with
+ * dumbbells are two exercises. Exercises made before the catalog may lack the classification.
+ */
 export interface Exercise {
   id: string
+  /** Name in Spanish, without the equipment, e.g. "Press de banca". */
   name: string
-  /** Free-form category, e.g. "Pecho", "Pierna". */
-  category?: string
+  equipment?: Equipment
+  /** Unilateral exercises are done one side at a time. Missing: taken from the catalog by name. */
+  laterality?: Laterality
+  /** The muscles it works most. The only ones shown in lists, filters and stats. */
+  primary?: Muscle[]
+  /** Muscles that also work, shown only on the exercise's page. Empty: none. */
+  secondary?: Muscle[]
+  /** Its names in Strong, so imports find it. */
+  strongNames?: string[]
   notes?: string
   defaultRestSeconds?: number
-  /** Unilateral exercises are done one side at a time. Missing: taken from the catalog by name. */
-  laterality?: 'Bilateral' | 'Unilateral'
   createdAt: number
 }
 
@@ -110,6 +122,22 @@ db.version(2)
     })
     await tx.table('templates').bulkPut(templates)
     await tx.table('workouts').bulkPut(workouts)
+  })
+
+// Version 3: exercises in Spanish with the catalog's data. Names are no longer unique
+// ("Press de banca" with a barbell or with dumbbells), see lib/migrations.
+db.version(3)
+  .stores({ exercises: 'id, name' })
+  .upgrade(async (tx) => {
+    const exercises = tx.table<Exercise, string>('exercises')
+    const workouts = tx.table<Workout, string>('workouts')
+    const templates = tx.table<Template, string>('templates')
+    const before = { exercises: await exercises.toArray(), workouts: await workouts.toArray(), templates: await templates.toArray() }
+    const after = migrateToCatalog(before)
+    await exercises.clear()
+    await exercises.bulkAdd(after.exercises)
+    await workouts.bulkPut(after.workouts.filter((w, i) => w !== before.workouts[i]))
+    await templates.bulkPut(after.templates.filter((t, i) => t !== before.templates[i]))
   })
 
 export const DEFAULT_REST_SECONDS = 120

@@ -1,16 +1,22 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { LineChart } from '../components/charts'
 import { ExerciseSheet } from '../components/ExerciseSheet'
+import { ExerciseTags } from '../components/ExerciseTags'
 import { CloseButton, Sheet } from '../components/Sheet'
-import { db } from '../db'
+import { db, type Exercise } from '../db'
+import { useBodyFigure } from '../lib/bodyFigure'
+import { missingFields } from '../lib/exercises'
 import { useCloseSheet, useOpenSheet } from '../lib/sheets'
 import { fmtDate, fmtInt, fmtMediumDate, fmtNumber, fmtSet, fmtShortDate, setLabels } from '../lib/format'
 import { exerciseSessions, personalRecords, type PersonalRecord, type Records, type Session } from '../lib/stats'
 import { estimated1RM } from '../lib/workouts'
 
-type Tab = 'charts' | 'records' | 'history'
+type Tab = 'about' | 'charts' | 'records' | 'history'
+
+/** The drawings are big: they load when an exercise page first opens. */
+const BodyFigure = lazy(() => import('../components/BodyFigure'))
 type MetricKey = 'e1rm' | 'weight' | 'volume' | 'reps'
 
 const kg = (v: number) => `${fmtNumber(Math.round(v * 10) / 10)} kg`
@@ -54,7 +60,7 @@ export function ExerciseDetail({ id, onClose, level = 1, onOpenWorkout }: Detail
     async () => exerciseSessions(await db.workouts.where('exerciseIds').equals(id).toArray(), id),
     [id],
   )
-  const [tab, setTab] = useState<Tab>('charts')
+  const [tab, setTab] = useState<Tab>('about')
   const [editing, setEditing] = useState(false)
 
   const loaded = exercise !== undefined && sessions !== undefined
@@ -77,13 +83,17 @@ export function ExerciseDetail({ id, onClose, level = 1, onOpenWorkout }: Detail
         <p className="empty">Este ejercicio ya no existe.</p>
       ) : (
         <>
-          <p className="muted small-text detail-subtitle">
-            {exercise.category ?? 'Otros'} · {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'}
-          </p>
+          <div className="detail-subtitle">
+            <ExerciseTags exercise={exercise} full />
+            <span className="muted small-text">
+              {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'}
+            </span>
+          </div>
 
           <div className="segmented" role="group" aria-label="Sección">
             {(
               [
+                ['about', 'Ficha'],
                 ['charts', 'Gráficas'],
                 ['records', 'Récords'],
                 ['history', 'Historial'],
@@ -95,7 +105,9 @@ export function ExerciseDetail({ id, onClose, level = 1, onOpenWorkout }: Detail
             ))}
           </div>
 
-          {sessions.length === 0 ? (
+          {tab === 'about' ? (
+            <AboutTab exercise={exercise} onEdit={() => setEditing(true)} />
+          ) : sessions.length === 0 ? (
             <p className="empty">Todavía no has hecho este ejercicio.</p>
           ) : tab === 'charts' ? (
             <ChartsTab sessions={sessions} />
@@ -117,6 +129,53 @@ export function ExerciseDetail({ id, onClose, level = 1, onOpenWorkout }: Detail
         </>
       )}
     </Sheet>
+  )
+}
+
+/** What the exercise is: the muscles it works on the body figure, its notes and its names in Strong. */
+function AboutTab({ exercise, onEdit }: { exercise: Exercise; onEdit: () => void }) {
+  const sex = useBodyFigure()
+  const primary = exercise.primary ?? []
+  const secondary = exercise.secondary ?? []
+  const missing = missingFields(exercise)
+  return (
+    <>
+      <section className="card about-card">
+        {primary.length > 0 && (
+          <Suspense fallback={<div className="body-figure" />}>
+            <BodyFigure primary={primary} secondary={secondary} sex={sex} />
+          </Suspense>
+        )}
+        <dl className="muscle-list">
+          <div>
+            <dt>
+              <span className="swatch primary" /> Músculos principales
+            </dt>
+            <dd>{primary.join(', ') || 'Sin indicar'}</dd>
+          </div>
+          <div>
+            <dt>
+              <span className="swatch secondary" /> Músculos secundarios
+            </dt>
+            <dd>{secondary.length ? secondary.join(', ') : exercise.secondary ? 'Ninguno' : 'Sin indicar'}</dd>
+          </div>
+        </dl>
+        {missing.length > 0 && (
+          <button className="btn full" onClick={onEdit}>
+            Completar: {missing.join(', ')}
+          </button>
+        )}
+      </section>
+      {exercise.notes && (
+        <section className="card">
+          <h2>Notas</h2>
+          <p className="pre-line">{exercise.notes}</p>
+        </section>
+      )}
+      {exercise.strongNames?.length ? (
+        <p className="muted small-text detail-footnote">En Strong: {exercise.strongNames.join(' · ')}</p>
+      ) : null}
+    </>
   )
 }
 

@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import { db, DEFAULT_REST_SECONDS, newId, REST_OPTIONS, type Exercise } from '../db'
-import { fmtClock } from '../lib/format'
-import { SEED_EXERCISES } from '../seed'
-import { isUnilateral } from '../lib/catalog'
+import { EQUIPMENT, LATERALITY, MUSCLE_GROUP_NAMES, MUSCLE_GROUPS, type Equipment, type Muscle } from '../lib/catalog'
 import { confirmDialog, notify } from '../lib/dialog'
+import { exerciseKey, exerciseLabel, missingFields } from '../lib/exercises'
+import { fmtClock } from '../lib/format'
 import { CloseButton, Sheet } from './Sheet'
-
-const CATEGORIES = Object.keys(SEED_EXERCISES)
 
 interface Props {
   exercise: Exercise
@@ -14,24 +12,35 @@ interface Props {
   usage: number
   onClose: () => void
   onDeleted?: () => void
+  /** Called with the exercise once it is saved. */
+  onSaved?: (exercise: Exercise) => void
   level?: number
 }
 
-/** Sheet to create or edit an exercise. A blank `id` means "new". */
-export function ExerciseSheet({ exercise, usage, onClose, onDeleted, level = 2 }: Props) {
+/** Sheet to create or edit an exercise. A blank `id` means "new". Every field but the notes is required. */
+export function ExerciseSheet({ exercise, usage, onClose, onDeleted, onSaved, level = 2 }: Props) {
   const [draft, setDraft] = useState(exercise)
+  const [tried, setTried] = useState(false)
   const isNew = !exercise.id
+  const missing = tried ? missingFields(draft) : []
+  const primary = draft.primary ?? []
 
   async function save() {
-    const name = draft.name.trim()
-    if (!name) return
-    const clash = await db.exercises.where('name').equals(name).first()
-    if (clash && clash.id !== exercise.id) {
-      await notify('Ya existe un ejercicio con ese nombre')
+    const next: Exercise = { ...draft, name: draft.name.trim(), id: draft.id || newId() }
+    const lacking = missingFields(next)
+    if (lacking.length) {
+      setTried(true)
+      await notify('Faltan datos', `Completa: ${lacking.join(', ')}.`)
       return
     }
-    await db.exercises.put({ ...draft, name, id: draft.id || newId() })
+    const clash = (await db.exercises.toArray()).find((e) => e.id !== next.id && exerciseKey(e) === exerciseKey(next))
+    if (clash) {
+      await notify('Ese ejercicio ya existe', `«${exerciseLabel(clash)}» ya está en la lista.`)
+      return
+    }
+    await db.exercises.put(next)
     onClose()
+    onSaved?.(next)
   }
 
   async function remove() {
@@ -39,7 +48,8 @@ export function ExerciseSheet({ exercise, usage, onClose, onDeleted, level = 2 }
       await notify('No se puede eliminar', `Aparece en ${usage} ${usage === 1 ? 'entreno' : 'entrenos'}.`)
       return
     }
-    if (!(await confirmDialog({ title: `¿Eliminar «${exercise.name}»?`, confirm: 'Eliminar', danger: true }))) return
+    const title = `¿Eliminar «${exerciseLabel(exercise)}»?`
+    if (!(await confirmDialog({ title, confirm: 'Eliminar', danger: true }))) return
     await db.exercises.delete(exercise.id)
     onClose()
     onDeleted?.()
@@ -58,6 +68,18 @@ export function ExerciseSheet({ exercise, usage, onClose, onDeleted, level = 2 }
     onClose()
   }
 
+  function togglePrimary(m: Muscle) {
+    const next = primary.includes(m) ? primary.filter((x) => x !== m) : [...primary, m]
+    setDraft({ ...draft, primary: next, secondary: draft.secondary?.filter((x) => x !== m) })
+  }
+
+  function toggleSecondary(m: Muscle) {
+    const list = draft.secondary ?? []
+    setDraft({ ...draft, secondary: list.includes(m) ? list.filter((x) => x !== m) : [...list, m] })
+  }
+
+  const invalid = (field: string) => (missing.includes(field) ? 'invalid' : undefined)
+
   return (
     <Sheet
       level={level}
@@ -71,32 +93,64 @@ export function ExerciseSheet({ exercise, usage, onClose, onDeleted, level = 2 }
       }
     >
       <div className="form">
-        <label>
+        <label className={invalid('nombre')}>
           Nombre
-          <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <input
+            value={draft.name}
+            placeholder="Por ejemplo, Press de banca"
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
         </label>
-        <label>
-          Grupo muscular
+        <label className={invalid('material')}>
+          Material
           <select
-            value={draft.category ?? ''}
-            onChange={(e) => setDraft({ ...draft, category: e.target.value || undefined })}
+            value={draft.equipment ?? ''}
+            onChange={(e) => setDraft({ ...draft, equipment: e.target.value as Equipment })}
           >
-            <option value="">Otros</option>
-            {CATEGORIES.map((c) => (
-              <option key={c}>{c}</option>
+            <option value="" disabled>
+              Elige el material
+            </option>
+            {EQUIPMENT.map((e) => (
+              <option key={e}>{e}</option>
             ))}
           </select>
         </label>
-        <label>
-          Lateralidad
-          <select
-            value={isUnilateral(draft) ? 'Unilateral' : 'Bilateral'}
-            onChange={(e) => setDraft({ ...draft, laterality: e.target.value as 'Bilateral' | 'Unilateral' })}
-          >
-            <option value="Bilateral">Bilateral</option>
-            <option value="Unilateral">Unilateral (un lado cada vez)</option>
-          </select>
-        </label>
+        <div className={`field ${invalid('lateralidad') ?? ''}`}>
+          <span className="field-label" id="laterality-label">
+            Lateralidad
+          </span>
+          <div className="segmented" role="group" aria-labelledby="laterality-label">
+            {LATERALITY.map((l) => (
+              <button key={l} aria-pressed={draft.laterality === l} onClick={() => setDraft({ ...draft, laterality: l })}>
+                {l === 'Unilateral' ? 'Unilateral (por lados)' : l}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className={`field ${invalid('músculos principales') ?? ''}`}>
+          <span className="field-label">Músculos principales</span>
+          <p className="field-hint">Los que más trabaja. Son los que se ven en las listas y los filtros.</p>
+          <MuscleChips label="Músculos principales" selected={primary} onToggle={togglePrimary} />
+        </div>
+        <div className={`field ${invalid('músculos secundarios') ?? ''}`}>
+          <span className="field-label">Músculos secundarios</span>
+          <p className="field-hint">Los que también trabajan. Solo se ven en la ficha del ejercicio.</p>
+          <div className="chips">
+            <button
+              className="chip"
+              aria-pressed={draft.secondary?.length === 0}
+              onClick={() => setDraft({ ...draft, secondary: [] })}
+            >
+              Ninguno
+            </button>
+          </div>
+          <MuscleChips
+            label="Músculos secundarios"
+            selected={draft.secondary ?? []}
+            hidden={primary}
+            onToggle={toggleSecondary}
+          />
+        </div>
         <label>
           Descanso por defecto
           <select
@@ -111,7 +165,7 @@ export function ExerciseSheet({ exercise, usage, onClose, onDeleted, level = 2 }
           </select>
         </label>
         <label>
-          Notas
+          Notas (opcional)
           <textarea
             value={draft.notes ?? ''}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value || undefined })}
@@ -124,5 +178,39 @@ export function ExerciseSheet({ exercise, usage, onClose, onDeleted, level = 2 }
         )}
       </div>
     </Sheet>
+  )
+}
+
+/** Muscles as toggle chips, by body area. `hidden` muscles are left out (e.g. the primary ones). */
+function MuscleChips({
+  label,
+  selected,
+  hidden = [],
+  onToggle,
+}: {
+  label: string
+  selected: Muscle[]
+  hidden?: Muscle[]
+  onToggle: (m: Muscle) => void
+}) {
+  return (
+    <div className="muscle-chips" role="group" aria-label={label}>
+      {MUSCLE_GROUP_NAMES.map((g) => {
+        const muscles = (MUSCLE_GROUPS[g] as readonly Muscle[]).filter((m) => !hidden.includes(m))
+        if (!muscles.length) return null
+        return (
+          <div key={g} className="muscle-row">
+            <span className="muscle-row-name">{g}</span>
+            <div className="chips">
+              {muscles.map((m) => (
+                <button key={m} className="chip" aria-pressed={selected.includes(m)} onClick={() => onToggle(m)}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }

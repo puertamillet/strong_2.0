@@ -5,6 +5,8 @@ import { restTimer, useRestTimer } from '../lib/restTimer'
 import { useNow } from '../lib/useNow'
 import { isPR, nextSet, type ExerciseContext } from '../lib/workouts'
 import { confirmDialog, pickDuration } from '../lib/dialog'
+import { exerciseLabel } from '../lib/exercises'
+import { ExerciseTags } from './ExerciseTags'
 import { Icon } from './icons'
 import { NumInput } from './NumInput'
 
@@ -81,7 +83,7 @@ export function ExerciseCard({
   const [showSticky, setShowSticky] = useState(Boolean(we.stickyNote))
   const placeholders = useMemo(() => placeholdersFor(we, previous), [we, previous])
   const labels = setLabels(we.sets)
-  const name = exercise?.name ?? 'Ejercicio eliminado'
+  const name = exercise ? exerciseLabel(exercise) : 'Ejercicio eliminado'
 
   async function onAction(action: string) {
     switch (action) {
@@ -162,7 +164,8 @@ export function ExerciseCard({
     <section className="card exercise-card">
       <div className="exercise-head">
         <button className="exercise-link" onClick={() => exercise && onOpenExercise(exercise.id)}>
-          <h3>{name}</h3>
+          <h3>{exercise?.name ?? name}</h3>
+          {exercise && <ExerciseTags exercise={exercise} />}
         </button>
         <label className="select-chip" title="Más opciones">
           ⋯

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { fmtClock, fmtDateTime, fmtNumber, fmtRange, fmtSet, parseNum, parseRange, setLabel, setLabels } from '../lib/format'
-import { guessCategory } from '../seed'
 
 describe('format', () => {
   it('parses numbers with comma or dot', () => {
@@ -45,24 +44,5 @@ describe('format', () => {
     expect(parseRange('seis')).toBeUndefined()
     expect(fmtRange([6, 8])).toBe('6–8')
     expect(fmtRange([8, 8])).toBe('8')
-  })
-})
-
-describe('guessCategory', () => {
-  it.each([
-    ['Lying Leg Curl (Machine)', 'Pierna'],
-    ['Reverse Fly (Machine)', 'Hombro'],
-    ['Triceps Extension Overhead (Cable)', 'Brazo'],
-    ['Lat Pulldown (Single Arm)', 'Espalda'],
-    ['Calf Press on Seated Leg Press', 'Pierna'],
-    ['Curl Bayesian (Cable)', 'Brazo'],
-    ['Crunch (Machine)', 'Abdomen'],
-    ['Hip Thrust (Barbell)', 'Pierna'],
-    ['Incline Chest Fly (Cable)', 'Pecho'],
-    ['Seated Overhead Press (Smith Machine)', 'Hombro'],
-    ['Unilateral Pullover (Cable)', 'Espalda'],
-    ['Unilateral LateraL Raise (Machine)', 'Hombro'],
-  ])('%s → %s', (name, category) => {
-    expect(guessCategory(name)).toBe(category)
   })
 })

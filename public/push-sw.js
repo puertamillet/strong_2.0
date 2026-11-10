@@ -6,7 +6,13 @@
 
 const numberFormat = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2, useGrouping: false })
 
-/** "Press de banca · 60 kg × 8", the first set not ticked yet of the workout in progress. */
+/** The exercise's name as the app writes it (exerciseLabel in src/lib/exercises.ts): "Press de banca (barra)". */
+function exerciseLabel(exercise) {
+  const equipment = exercise.equipment
+  return equipment && equipment !== 'Peso corporal' ? `${exercise.name} (${equipment.toLowerCase()})` : exercise.name
+}
+
+/** "Press de banca (barra) · 60 kg × 8", the first set not ticked yet of the workout in progress. */
 async function nextSetText() {
   const db = await new Promise((resolve, reject) => {
     const req = indexedDB.open('strong2')
@@ -33,7 +39,7 @@ async function nextSetText() {
         req.onsuccess = () => resolve(req.result)
         req.onerror = () => resolve(null)
       })
-      const name = exercise ? exercise.name : 'Siguiente ejercicio'
+      const name = exercise ? exerciseLabel(exercise) : 'Siguiente ejercicio'
       if (set.reps === null && set.weight === null) return name
       const values = set.weight ? `${numberFormat.format(set.weight)} kg × ${set.reps ?? '—'}` : `${set.reps} reps`
       return `${name} · ${values}`

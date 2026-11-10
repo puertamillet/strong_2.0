@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { choose } from '../lib/dialog'
 import { CloseButton } from '../components/Sheet'
 import { db, type Template } from '../db'
+import { exerciseLabel } from '../lib/exercises'
 import { fmtShortDate, normalize } from '../lib/format'
 import { restTimer } from '../lib/restTimer'
 import { useOpenSheet } from '../lib/sheets'
@@ -16,7 +17,7 @@ export function StartPage() {
   const templates = useLiveQuery(() => db.templates.orderBy('name').toArray(), [])
   const workoutCount = useLiveQuery(() => db.workouts.count(), [])
   const exerciseNames = useLiveQuery(
-    async () => new Map((await db.exercises.toArray()).map((e) => [e.id, e.name] as const)),
+    async () => new Map((await db.exercises.toArray()).map((e) => [e.id, exerciseLabel(e)] as const)),
     [],
   )
   const [preview, setPreview] = useState<Template | null>(null)

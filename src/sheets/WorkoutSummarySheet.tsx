@@ -4,9 +4,10 @@ import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { askText, confirmDialog, notify } from '../lib/dialog'
 import { ExerciseCard } from '../components/ExerciseCard'
 import { ExercisePicker } from '../components/ExercisePicker'
+import { ExerciseTags } from '../components/ExerciseTags'
 import { Icon } from '../components/icons'
 import { CloseButton, Sheet } from '../components/Sheet'
-import { db, type Workout, type WorkoutExercise } from '../db'
+import { db, type Exercise, type Workout, type WorkoutExercise } from '../db'
 import { fmtDate, fmtDuration, fmtInt, fmtNumber, fmtSet, setLabels } from '../lib/format'
 import { useExerciseContexts, useExerciseMap } from '../lib/hooks'
 import { useCloseSheet } from '../lib/sheets'
@@ -91,7 +92,7 @@ export function WorkoutSummaryRoute() {
             <SummaryExercise
               key={i}
               we={e}
-              name={exercises?.get(e.exerciseId)?.name ?? 'Ejercicio eliminado'}
+              exercise={exercises?.get(e.exerciseId)}
               context={context?.get(e.exerciseId)}
               onOpen={() => setDetail(e.exerciseId)}
             />
@@ -114,12 +115,23 @@ export function WorkoutSummaryRoute() {
 
 const kg = (v: number) => `${fmtNumber(Math.round(v * 10) / 10)} kg`
 
-function SummaryExercise({ we, name, context, onOpen }: { we: WorkoutExercise; name: string; context?: ExerciseContext; onOpen: () => void }) {
+function SummaryExercise({
+  we,
+  exercise,
+  context,
+  onOpen,
+}: {
+  we: WorkoutExercise
+  exercise?: Exercise
+  context?: ExerciseContext
+  onOpen: () => void
+}) {
   const labels = setLabels(we.sets)
   return (
     <section className="card summary-exercise">
       <button className="exercise-link" onClick={onOpen}>
-        <h3>{name}</h3>
+        <h3>{exercise?.name ?? 'Ejercicio eliminado'}</h3>
+        {exercise && <ExerciseTags exercise={exercise} />}
       </button>
       {we.notes && <p className="muted small-text">{we.notes}</p>}
       <ul className="session-sets">
