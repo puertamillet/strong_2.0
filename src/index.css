@@ -13,6 +13,10 @@
   --warmup: #e69a00;
   --drop: #8a5cf6;
   --failure: #e5383b;
+  /* Chart series color, validated per mode against the card surface. */
+  --chart-1: #0a7cff;
+  --pr: #8a5800;
+  --seg-selected: #ffffff;
   --radius: 14px;
   --tab-h: 58px;
   color-scheme: light dark;
@@ -33,6 +37,9 @@
     --accent: #3d9bff;
     --done: #12391d;
     --done-strong: #34c759;
+    --chart-1: #3390f7;
+    --pr: #f5b82e;
+    --seg-selected: #5a5a5f;
   }
 }
 
@@ -750,4 +757,307 @@ h3 {
 
 .status-ok {
   color: var(--done-strong);
+}
+
+/* Charts */
+.chart {
+  position: relative;
+  width: 100%;
+}
+
+.chart svg {
+  display: block;
+  touch-action: pan-y;
+  outline: none;
+  overflow: visible;
+}
+
+.chart svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.chart-grid {
+  stroke: var(--surface-2);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart-axis {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-area {
+  fill: var(--chart-1);
+  opacity: 0.1;
+}
+
+.chart-dot {
+  fill: var(--chart-1);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.chart-point {
+  fill: var(--chart-1);
+}
+
+.chart-crosshair {
+  stroke: var(--muted);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart-label {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chart-bar {
+  fill: var(--chart-1);
+}
+
+.chart-bar.is-active {
+  opacity: 0.75;
+}
+
+.chart-hit {
+  fill: transparent;
+  outline: none;
+}
+
+.chart-tip {
+  position: absolute;
+  top: -6px;
+  min-width: 120px;
+  max-width: 180px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.chart-tip strong {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+/* Segmented control */
+.segmented {
+  display: flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.segmented button {
+  flex: 1;
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--seg-selected);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.control-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.control-row .segmented {
+  flex: 1 1 auto;
+}
+
+/* Stat tiles */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.stat-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+/* Records */
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.record {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+}
+
+.record-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 8px 4px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.data-table td.num,
+.data-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+details.table-view summary {
+  color: var(--accent);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+/* Exercise history sessions */
+.session-sets {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-sets li {
+  display: flex;
+  gap: 10px;
+}
+
+.session-sets .set-tag {
+  width: 18px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.session-sets .set-tag.type-warmup {
+  color: var(--warmup);
+}
+
+.session-sets .set-tag.type-drop {
+  color: var(--drop);
+}
+
+.session-sets .set-tag.type-failure {
+  color: var(--failure);
+}
+
+.pr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--pr);
+}
+
+.exercise-link {
+  text-align: left;
+}
+
+/* Exercise detail */
+.detail-title {
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+
+.detail-subtitle {
+  margin: 4px 0 0;
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-card p {
+  margin: 0;
+}
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.text-strong {
+  color: var(--text);
+  font-weight: 600;
 }

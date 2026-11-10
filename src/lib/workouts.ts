@@ -89,6 +89,51 @@ export async function lastPerformance(
   return latest?.exercises.find((e) => e.exerciseId === exerciseId)
 }
 
+export interface ExerciseContext {
+  /** The previous session of this exercise (before the given time). */
+  last?: WorkoutExercise
+  /** Best estimated 1RM and heaviest weight before the given time. */
+  bestE1rm: number
+  bestWeight: number
+  /** Earlier sessions; 0 means this is the first time. */
+  sessions: number
+}
+
+/** What came before a workout for one exercise: last session and best marks (for "Anterior" and PRs). */
+export async function exerciseContext(exerciseId: string, workoutId: string, before: number): Promise<ExerciseContext> {
+  const earlier = (await db.workouts.where('exerciseIds').equals(exerciseId).toArray())
+    .filter((w) => w.endedAt !== null && w.id !== workoutId && w.startedAt < before)
+    .sort((a, b) => a.startedAt - b.startedAt)
+  let bestE1rm = 0
+  let bestWeight = 0
+  for (const w of earlier) {
+    for (const e of w.exercises) {
+      if (e.exerciseId !== exerciseId) continue
+      for (const s of e.sets) {
+        if (s.type === 'warmup') continue
+        bestE1rm = Math.max(bestE1rm, estimated1RM(s.weight ?? 0, s.reps ?? 0))
+        bestWeight = Math.max(bestWeight, s.weight ?? 0)
+      }
+    }
+  }
+  const latest = earlier[earlier.length - 1]
+  return {
+    last: latest?.exercises.find((e) => e.exerciseId === exerciseId),
+    bestE1rm,
+    bestWeight,
+    sessions: earlier.length,
+  }
+}
+
+/** True if a completed set beats every earlier session (estimated 1RM or weight). */
+export function isPR(set: WorkoutSet, ctx: ExerciseContext | undefined): boolean {
+  if (!ctx || ctx.sessions === 0 || !set.done || set.type === 'warmup') return false
+  const w = set.weight ?? 0
+  const r = set.reps ?? 0
+  if (w <= 0 || r <= 0) return false
+  return estimated1RM(w, r) > ctx.bestE1rm + 1e-9 || w > ctx.bestWeight
+}
+
 /** Number of completed sets in a workout. */
 export function countDoneSets(w: Workout): number {
   return w.exercises.reduce((n, e) => n + e.sets.filter((s) => s.done).length, 0)

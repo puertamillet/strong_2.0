@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ExercisePicker } from '../components/ExercisePicker'
+import { Icon } from '../components/icons'
 import { NumInput } from '../components/NumInput'
 import {
   db,
@@ -12,7 +13,7 @@ import {
   type WorkoutExercise,
   type WorkoutSet,
 } from '../db'
-import { fmtClock, fmtDate, fmtSet, SET_TYPE_NAMES, setLabels } from '../lib/format'
+import { fmtClock, fmtDate, fmtNumber, fmtSet, SET_TYPE_NAMES, setLabels } from '../lib/format'
 import { restTimer } from '../lib/restTimer'
 import {
   addExercisesToWorkout,
@@ -20,7 +21,9 @@ import {
   differsFromTemplate,
   discardWorkout,
   finishWorkout,
-  lastPerformance,
+  exerciseContext,
+  isPR,
+  type ExerciseContext,
   mutateWorkout,
   saveAsTemplate,
   updateTemplateFromWorkout,
@@ -35,11 +38,13 @@ export function WorkoutPage() {
     [],
   )
   const exerciseKey = workout?.exerciseIds.join(',') ?? ''
-  const previous = useLiveQuery(async () => {
+  const startedAt = workout?.startedAt ?? 0
+  // For each exercise: the previous session ("Anterior") and earlier bests (to flag records).
+  const context = useLiveQuery(async () => {
     const ids = exerciseKey ? exerciseKey.split(',') : []
-    const entries = await Promise.all(ids.map(async (eid) => [eid, await lastPerformance(eid, id)] as const))
+    const entries = await Promise.all(ids.map(async (eid) => [eid, await exerciseContext(eid, id, startedAt)] as const))
     return new Map(entries)
-  }, [exerciseKey, id])
+  }, [exerciseKey, id, startedAt])
   const [picking, setPicking] = useState(false)
 
   if (workout === undefined || !exercises) return <div className="page" />
@@ -123,7 +128,7 @@ export function WorkoutPage() {
           key={`${we.exerciseId}-${ei}`}
           we={we}
           exercise={exercises.get(we.exerciseId)}
-          previous={previous?.get(we.exerciseId)}
+          context={context?.get(we.exerciseId)}
           isFirst={ei === 0}
           isLast={ei === workout.exercises.length - 1}
           active={active}
@@ -185,7 +190,7 @@ function Elapsed({ since }: { since: number }) {
 interface CardProps {
   we: WorkoutExercise
   exercise?: Exercise
-  previous?: WorkoutExercise
+  context?: ExerciseContext
   isFirst: boolean
   isLast: boolean
   active: boolean
@@ -211,7 +216,9 @@ function placeholdersFor(we: WorkoutExercise, previous?: WorkoutExercise): (Work
   })
 }
 
-function ExerciseCard({ we, exercise, previous, isFirst, isLast, active, onChange, onMove, onRemove }: CardProps) {
+function ExerciseCard({ we, exercise, context, isFirst, isLast, active, onChange, onMove, onRemove }: CardProps) {
+  const navigate = useNavigate()
+  const previous = context?.last
   const [showNotes, setShowNotes] = useState(Boolean(we.notes))
   const placeholders = useMemo(() => placeholdersFor(we, previous), [we, previous])
   const labels = setLabels(we.sets)
@@ -254,7 +261,9 @@ function ExerciseCard({ we, exercise, previous, isFirst, isLast, active, onChang
   return (
     <section className="card exercise-card">
       <div className="exercise-head">
-        <h3>{exercise?.name ?? 'Ejercicio eliminado'}</h3>
+        <button className="exercise-link" onClick={() => exercise && navigate(`/exercises/${exercise.id}`)}>
+          <h3>{exercise?.name ?? 'Ejercicio eliminado'}</h3>
+        </button>
         <label className="select-chip" title="Más opciones">
           ⋯
           <select value="" onChange={(e) => onAction(e.target.value)} aria-label="Opciones del ejercicio">
@@ -341,12 +350,18 @@ function ExerciseCard({ we, exercise, previous, isFirst, isLast, active, onChang
                 <option value="delete">Eliminar serie</option>
               </select>
             </label>
-            <span className="prev">{prevForType && previous?.sets.includes(prevForType) ? fmtSet(prevForType) : '—'}</span>
+            {isPR(s, context) ? (
+              <span className="prev pr-badge">
+                <Icon name="trophy" size={16} /> Récord
+              </span>
+            ) : (
+              <span className="prev">{prevForType && previous?.sets.includes(prevForType) ? fmtSet(prevForType) : '—'}</span>
+            )}
             <NumInput
               className="cell-input"
               ariaLabel="Peso en kg"
               value={s.weight}
-              placeholder={ph?.weight != null ? String(ph.weight) : ''}
+              placeholder={fmtNumber(ph?.weight)}
               onChange={(v) =>
                 onChange((x) => {
                   x.sets[si].weight = v
@@ -358,7 +373,7 @@ function ExerciseCard({ we, exercise, previous, isFirst, isLast, active, onChang
               ariaLabel="Repeticiones"
               decimal={false}
               value={s.reps}
-              placeholder={ph?.reps != null ? String(ph.reps) : ''}
+              placeholder={fmtNumber(ph?.reps)}
               onChange={(v) =>
                 onChange((x) => {
                   x.sets[si].reps = v

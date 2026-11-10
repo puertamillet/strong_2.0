@@ -1,4 +1,4 @@
-/** Line icons for the tab bar: 24px grid, drawn with currentColor so they follow the theme. */
+/** Line icons on a 24px grid, drawn with currentColor so they follow the theme. */
 const paths = {
   train: (
     <>
@@ -22,6 +22,13 @@ const paths = {
       <path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" strokeWidth="2.8" />
     </>
   ),
+  trophy: (
+    <>
+      <path d="M7.5 4h9v4.5a4.5 4.5 0 0 1-9 0V4Z" />
+      <path d="M7.5 6H5.25a2 2 0 0 0 0 4h2.6M16.5 6h2.25a2 2 0 0 1 0 4h-2.6" />
+      <path d="M12 13v3.5M8.5 20h7M10 16.5h4l.5 3.5h-5l.5-3.5Z" />
+    </>
+  ),
   settings: (
     <>
       <path d="M3.5 7h9.5M19 7h1.5M3.5 17h1.5M11 17h9.5" />
@@ -33,13 +40,13 @@ const paths = {
 
 export type IconName = keyof typeof paths
 
-export function Icon({ name }: { name: IconName }) {
+export function Icon({ name, size = 26 }: { name: IconName; size?: number }) {
   return (
     <svg
       className="icon"
       viewBox="0 0 24 24"
-      width="26"
-      height="26"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"

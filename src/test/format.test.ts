@@ -13,7 +13,9 @@ describe('format', () => {
 
   it('formats numbers, sets and clocks', () => {
     expect(fmtNumber(22)).toBe('22')
-    expect(fmtNumber(22.5)).toBe('22.5')
+    expect(fmtNumber(22.5)).toBe('22,5')
+    expect(fmtNumber(51.257)).toBe('51,26')
+    expect(fmtNumber(1250)).toBe('1250')
     expect(fmtSet({ weight: 30, reps: 8 })).toBe('30 kg × 8')
     expect(fmtSet({ weight: 0, reps: 12 })).toBe('12 reps')
     expect(fmtClock(90)).toBe('1:30')

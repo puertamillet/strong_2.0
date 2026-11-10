@@ -11,7 +11,8 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 - Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez. Opcionalmente crea plantillas con las rutinas de los últimos 3 meses.
 - Copia de seguridad completa en JSON (guardar y restaurar) y exportación a CSV con el formato de Strong.
 
-Próximo paso: gráficas de progreso y récords.
+- Progreso por ejercicio: gráficas de 1RM estimado, peso máximo, volumen y repeticiones (3 meses, 1 año o todo), récords personales y mejor peso por repeticiones, e historial de sesiones.
+- Récords marcados con un trofeo al registrar una serie y en el historial; resumen de entrenos por semana.
 
 ## Publicación
 
@@ -34,8 +35,8 @@ Stack: React + TypeScript + Vite, Dexie (IndexedDB), React Router (HashRouter) y
 
 - `src/db.ts`: modelo de datos y esquema de la base de datos.
 - `src/lib/`: lógica sin interfaz (entrenos, formato, temporizador, estadísticas, CSV de Strong, copias de seguridad).
-- `src/pages/`: pantallas (Entrenar, Entreno, Plantilla, Historial, Ejercicios, Ajustes).
-- `src/components/`: piezas reutilizables (selector de ejercicios, temporizador, inputs).
+- `src/pages/`: pantallas (Entrenar, Entreno, Plantilla, Historial, Ejercicios, Detalle de ejercicio, Ajustes).
+- `src/components/`: piezas reutilizables (selector de ejercicios, temporizador, inputs, gráficas SVG, iconos).
 
 ## Instalar en el iPhone
 
