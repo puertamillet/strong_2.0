@@ -5,6 +5,13 @@ export function fmtNumber(n: number | null | undefined): string {
   return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100)
 }
 
+const intFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 })
+
+/** Whole number with thousands separator, e.g. 12.821 */
+export function fmtInt(n: number): string {
+  return intFmt.format(Math.round(n))
+}
+
 export function fmtSet(s: Pick<WorkoutSet, 'weight' | 'reps'>): string {
   if (s.weight === null && s.reps === null) return '—'
   if (!s.weight) return `${fmtNumber(s.reps)} reps`

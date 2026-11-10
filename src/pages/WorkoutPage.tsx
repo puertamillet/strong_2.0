@@ -3,7 +3,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { NumInput } from '../components/NumInput'
-import { db, emptySet, type Exercise, type SetType, type WorkoutExercise, type WorkoutSet } from '../db'
+import {
+  db,
+  emptySet,
+  REST_OPTIONS,
+  type Exercise,
+  type SetType,
+  type WorkoutExercise,
+  type WorkoutSet,
+} from '../db'
 import { fmtClock, fmtDate, fmtSet, SET_TYPE_NAMES, setLabels } from '../lib/format'
 import { restTimer } from '../lib/restTimer'
 import {
@@ -17,8 +25,6 @@ import {
   saveAsTemplate,
   updateTemplateFromWorkout,
 } from '../lib/workouts'
-
-const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 105, 120, 150, 180, 210, 240, 300]
 
 export function WorkoutPage() {
   const { id = '' } = useParams()

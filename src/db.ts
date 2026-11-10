@@ -75,6 +75,9 @@ db.version(1).stores({
 
 export const DEFAULT_REST_SECONDS = 120
 
+/** Choices offered for rest timers, in seconds (0 = no timer). */
+export const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 105, 120, 150, 180, 210, 240, 300]
+
 export function newId(): string {
   return crypto.randomUUID()
 }

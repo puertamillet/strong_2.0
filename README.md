@@ -8,8 +8,10 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 - Plantillas de rutina: crear, editar, empezar un entreno desde una plantilla y actualizarla al terminar.
 - Catálogo de ejercicios con buscador y grupos musculares.
 - Historial de entrenos (editable).
+- Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez. Opcionalmente crea plantillas con las rutinas de los últimos 3 meses.
+- Copia de seguridad completa en JSON (guardar y restaurar) y exportación a CSV con el formato de Strong.
 
-Próximos pasos: importar el historial exportado de Strong (CSV), gráficas de progreso y récords.
+Próximo paso: gráficas de progreso y récords.
 
 ## Publicación
 
@@ -21,6 +23,7 @@ Cada push a `main` publica la app en GitHub Pages (`.github/workflows/deploy.yml
 npm install
 npm run dev      # servidor local
 npm test         # tests (Vitest)
+STRONG_CSV=/ruta/a/strong.csv npm test   # además valida un export real de Strong
 npm run lint     # oxlint
 npm run build    # compila a dist/
 ```
@@ -30,8 +33,8 @@ Stack: React + TypeScript + Vite, Dexie (IndexedDB), React Router (HashRouter) y
 ### Estructura
 
 - `src/db.ts`: modelo de datos y esquema de la base de datos.
-- `src/lib/`: lógica sin interfaz (entrenos, formato, temporizador, estadísticas).
-- `src/pages/`: pantallas (Entrenar, Entreno, Plantilla, Historial, Ejercicios).
+- `src/lib/`: lógica sin interfaz (entrenos, formato, temporizador, estadísticas, CSV de Strong, copias de seguridad).
+- `src/pages/`: pantallas (Entrenar, Entreno, Plantilla, Historial, Ejercicios, Ajustes).
 - `src/components/`: piezas reutilizables (selector de ejercicios, temporizador, inputs).
 
 ## Instalar en el iPhone

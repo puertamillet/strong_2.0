@@ -2,11 +2,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ExercisePicker } from '../components/ExercisePicker'
-import { db, DEFAULT_REST_SECONDS, newId, type SetType, type Template } from '../db'
+import { db, DEFAULT_REST_SECONDS, newId, REST_OPTIONS, type SetType, type Template } from '../db'
 import { fmtClock, SET_TYPE_NAMES, setLabels } from '../lib/format'
 import { lastPerformance } from '../lib/workouts'
-
-const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 105, 120, 150, 180, 210, 240, 300]
 
 export function TemplateEditor() {
   const { id = 'new' } = useParams()

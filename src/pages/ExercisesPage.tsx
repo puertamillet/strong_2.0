@@ -1,12 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
-import { db, DEFAULT_REST_SECONDS, newId, type Exercise } from '../db'
+import { db, DEFAULT_REST_SECONDS, newId, REST_OPTIONS, type Exercise } from '../db'
 import { fmtClock, normalize } from '../lib/format'
 import { guessCategory, SEED_EXERCISES } from '../seed'
 
 const CATEGORIES = Object.keys(SEED_EXERCISES)
-const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 105, 120, 150, 180, 210, 240, 300]
-
 export function ExercisesPage() {
   const exercises = useLiveQuery(() => db.exercises.orderBy('name').toArray(), [])
   const usage = useLiveQuery(async () => {

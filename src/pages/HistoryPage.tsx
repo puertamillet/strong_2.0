@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../db'
-import { fmtDate, fmtDuration, fmtNumber, fmtSet } from '../lib/format'
+import { fmtDate, fmtDuration, fmtInt, fmtSet } from '../lib/format'
 import { bestSet, volume } from '../lib/stats'
 
 const PAGE = 30
@@ -37,7 +37,7 @@ export function HistoryPage() {
           <strong>{w.name}</strong>
           <span className="muted small-text">
             {fmtDate(w.startedAt)} · {fmtDuration((w.endedAt ?? w.startedAt) - w.startedAt)} ·{' '}
-            {fmtNumber(Math.round(volume(w)))} kg
+            {fmtInt(volume(w))} kg
           </span>
           <ul className="history-exercises">
             {w.exercises.map((e, i) => {
