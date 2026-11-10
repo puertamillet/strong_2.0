@@ -47,10 +47,13 @@ export interface Exercise {
   createdAt: number
 }
 
+/** A set in a template: its kind and the weight and reps to do (null = take last time's). */
+export type TemplateSet = Pick<WorkoutSet, 'type' | 'weight' | 'reps' | 'seconds' | 'distance'>
+
 export interface TemplateExercise {
   exerciseId: string
   restSeconds: number
-  sets: Pick<WorkoutSet, 'type' | 'weight' | 'reps' | 'seconds' | 'distance'>[]
+  sets: TemplateSet[]
 }
 
 export interface Template {

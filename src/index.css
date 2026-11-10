@@ -182,6 +182,16 @@ h3 {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
+.btn.danger-solid {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn.finish {
+  background: var(--done-strong);
+  color: #fff;
+}
+
 .btn.ghost {
   background: var(--surface-2);
   font-weight: 500;
@@ -214,13 +224,6 @@ h3 {
   margin-top: 12px;
 }
 
-.active-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border: 2px solid var(--accent);
-}
-
 .template-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -229,20 +232,12 @@ h3 {
 
 .template-card {
   display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.template-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
   flex-direction: column;
   gap: 4px;
-  text-align: left;
 }
 
-.template-body .small-text {
+.template-exercises {
+  white-space: normal;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -427,6 +422,15 @@ h3 {
   color: #fff;
 }
 
+.remove-set-btn {
+  height: 36px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
 .chips {
   display: flex;
   gap: 6px;
@@ -521,7 +525,7 @@ h3 {
   flex-shrink: 0;
 }
 
-/* Bottom sheet */
+/* Sheets: cards that slide up over the app (workout, template, exercise...). */
 .sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -530,34 +534,244 @@ h3 {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  animation: fade-in 0.2s ease-out;
 }
 
 .sheet {
   width: 100%;
   max-width: 640px;
-  height: calc(100dvh - env(safe-area-inset-top) - 24px);
+  height: calc(100dvh - env(safe-area-inset-top) - 10px);
   background: var(--bg);
-  border-radius: 16px 16px 0 0;
-  padding: 12px 16px env(safe-area-inset-bottom);
+  border-radius: 14px 14px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  overflow: hidden;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18);
+  animation: sheet-up 0.32s cubic-bezier(0.22, 0.9, 0.24, 1);
+  transition: transform 0.2s ease-out;
 }
 
-.sheet-header {
-  display: flex;
-  justify-content: space-between;
+/* A sheet opened from another sheet leaves a sliver of the one below visible. */
+.sheet.level-2 {
+  height: calc(100dvh - env(safe-area-inset-top) - 22px);
+}
+
+.sheet.level-3 {
+  height: calc(100dvh - env(safe-area-inset-top) - 34px);
+}
+
+.sheet.dragging {
+  transition: none;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.sheet-head {
+  flex-shrink: 0;
+  padding: 6px 10px 6px;
+  touch-action: none;
+}
+
+.sheet-head:not(.draggable) {
+  padding-top: 12px;
+}
+
+.grabber {
+  display: block;
+  width: 38px;
+  height: 5px;
+  border-radius: 3px;
+  margin: 0 auto 4px;
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+
+.sheet-bar {
+  display: grid;
+  grid-template-columns: minmax(64px, 1fr) auto minmax(64px, 1fr);
   align-items: center;
+  gap: 8px;
   min-height: 40px;
 }
 
-.sheet-list {
+.sheet-side {
+  display: flex;
+  align-items: center;
+}
+
+.sheet-side.end {
+  justify-content: flex-end;
+}
+
+.sheet-title {
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-clock {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.sheet-body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 4px 16px calc(env(safe-area-inset-bottom) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheet-footer {
+  flex-shrink: 0;
+  padding: 8px 12px calc(env(safe-area-inset-bottom) + 8px);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.sheet-heading {
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+
+.sheet-heading + .muted {
+  margin: 4px 0 0;
+}
+
+.sheet-search {
+  margin-top: 8px;
+}
+
+.picker-list {
+  flex-shrink: 0;
+}
+
+/* Dialogs (instead of the browser's confirm/alert/prompt) */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fade-in 0.15s ease-out;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 340px;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
   background: var(--surface);
-  border-radius: var(--radius);
-  padding: 0 14px;
+  border-radius: 18px;
+  padding: 20px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  animation: pop-in 0.18s cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+}
+
+.dialog h2 {
+  font-size: 1.1rem;
+}
+
+.dialog p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.dialog input {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: 0 12px;
+  font-size: 16px;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Template preview (a dialog with the routine and Empezar) */
+.template-preview {
+  max-width: 380px;
+  text-align: left;
+}
+
+.preview-head {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-head h2 {
+  text-align: center;
+}
+
+.preview-head .link {
+  justify-self: end;
+}
+
+.preview-list {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-list li {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-sets {
+  min-width: 30px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .form {
@@ -628,28 +842,66 @@ h3 {
   stroke-width: 2.2;
 }
 
-/* Rest timer */
+/* Rest timer, in the footer of the workout sheet */
 .rest-bar {
-  position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(env(safe-area-inset-bottom) + 12px);
-  z-index: 15;
-  max-width: 616px;
-  margin: 0 auto;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  padding: 8px 10px;
+  border-radius: 14px;
   background: var(--surface);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   overflow: hidden;
 }
 
-/* Lift the rest bar above the tab bar when the tab bar is visible. */
-.rest-bar:has(+ .tab-bar) {
+/* Minimised workout, above the tab bar */
+.workout-bar {
+  position: fixed;
+  left: 10px;
+  right: 10px;
   bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px);
+  z-index: 12;
+  max-width: 620px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  text-align: left;
+  color: var(--accent);
+}
+
+.workout-bar-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+}
+
+.workout-bar-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workout-bar-text .muted {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.workout-bar-rest {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .rest-progress {
@@ -993,6 +1245,10 @@ details.table-view summary {
 .session-sets li {
   display: flex;
   gap: 10px;
+}
+
+.session-sets .set-e1rm {
+  margin-left: auto;
 }
 
 .session-sets .set-tag {

@@ -29,6 +29,15 @@ const paths = {
       <path d="M12 13v3.5M8.5 20h7M10 16.5h4l.5 3.5h-5l.5-3.5Z" />
     </>
   ),
+  close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
+  chevronDown: <path d="M6 9.5l6 6 6-6" />,
+  chevronUp: <path d="M6 14.5l6-6 6 6" />,
+  timer: (
+    <>
+      <circle cx="12" cy="13.5" r="7" />
+      <path d="M12 13.5V10M10 3h4M18.5 6.5l1.2-1.2" />
+    </>
+  ),
   settings: (
     <>
       <path d="M3.5 7h9.5M19 7h1.5M3.5 17h1.5M11 17h9.5" />

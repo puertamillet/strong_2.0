@@ -1,21 +1,22 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { HashRouter, NavLink, Route, Routes, useLocation, type Location } from 'react-router-dom'
+import { DialogHost } from './components/Dialog'
 import { Icon } from './components/icons'
-import { RestTimerBar } from './components/RestTimerBar'
+import { WorkoutBar } from './components/WorkoutBar'
 import { useKeepAwakeSetting, useScreenWakeLock } from './lib/keepAwake'
+import { useRestAlarm } from './lib/restTimer'
+import { sheetBackground, type SheetState } from './lib/sheets'
 import { getActiveWorkout } from './lib/workouts'
-import { ExerciseDetailPage } from './pages/ExerciseDetailPage'
+import { ExerciseDetailRoute } from './pages/ExerciseDetailPage'
 import { ExercisesPage } from './pages/ExercisesPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StartPage } from './pages/StartPage'
-import { TemplateEditor } from './pages/TemplateEditor'
-import { WorkoutPage } from './pages/WorkoutPage'
+import { TemplateRoute } from './sheets/TemplateSheet'
+import { WorkoutRoute } from './sheets/WorkoutSheet'
+import { WorkoutSummaryRoute } from './sheets/WorkoutSummarySheet'
 
 function TabBar() {
-  const { pathname } = useLocation()
-  // Hide the tab bar while logging a workout or editing a template, to give the sets room.
-  if (pathname.startsWith('/workout/') || pathname.startsWith('/templates/')) return null
   return (
     <nav className="tab-bar">
       <NavLink to="/" end>
@@ -38,27 +39,52 @@ function TabBar() {
   )
 }
 
-export default function App() {
-  const keepAwake = useKeepAwakeSetting()
-  const training = useLiveQuery(async () => (await getActiveWorkout()) !== undefined, [])
-  useScreenWakeLock(keepAwake && training === true)
+/**
+ * Tabs are pages; workouts, templates, past workouts and exercises open as sheets
+ * over the tab they were opened from (or over their default tab after a reload).
+ */
+function AppRoutes() {
+  const location = useLocation()
+  const sheetTab = sheetBackground(location.pathname)
+  const background: Location =
+    (location.state as SheetState | null)?.background ??
+    (sheetTab ? { ...location, pathname: sheetTab, state: null } : location)
 
   return (
-    <HashRouter>
+    <>
       <main className="app">
-        <Routes>
+        <Routes location={background}>
           <Route path="/" element={<StartPage />} />
-          <Route path="/workout/:id" element={<WorkoutPage />} />
-          <Route path="/templates/:id" element={<TemplateEditor />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/exercises" element={<ExercisesPage />} />
-          <Route path="/exercises/:id" element={<ExerciseDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<StartPage />} />
         </Routes>
       </main>
-      <RestTimerBar />
+      {sheetTab && (
+        <Routes>
+          <Route path="/workout/:id" element={<WorkoutRoute />} />
+          <Route path="/templates/:id" element={<TemplateRoute />} />
+          <Route path="/history/:id" element={<WorkoutSummaryRoute />} />
+          <Route path="/exercises/:id" element={<ExerciseDetailRoute />} />
+        </Routes>
+      )}
+      <WorkoutBar />
       <TabBar />
+    </>
+  )
+}
+
+export default function App() {
+  const keepAwake = useKeepAwakeSetting()
+  const training = useLiveQuery(async () => (await getActiveWorkout()) !== undefined, [])
+  useScreenWakeLock(keepAwake && training === true)
+  useRestAlarm()
+
+  return (
+    <HashRouter>
+      <AppRoutes />
+      <DialogHost />
     </HashRouter>
   )
 }

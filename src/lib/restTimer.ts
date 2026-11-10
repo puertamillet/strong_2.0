@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { ringBell } from './bell'
 
 /** Seconds added or taken away by the rest bar's − and + buttons. */
@@ -64,6 +64,25 @@ function subscribe(l: () => void) {
 
 export function useRestTimer(): RestTimerState | null {
   return useSyncExternalStore(subscribe, () => state)
+}
+
+/**
+ * Rings the bell when the rest is over. Mounted once for the whole app, so it works
+ * whether the workout is open, minimised or behind another sheet.
+ */
+export function useRestAlarm(): void {
+  const timer = useRestTimer()
+  useEffect(() => {
+    if (!timer) return
+    const t = setInterval(() => {
+      const now = Date.now()
+      if (now < timer.endsAt) return
+      restTimer.stop()
+      // Don't ring late when coming back to the app long after the rest ended.
+      if (document.visibilityState === 'visible' && now - timer.endsAt < 2000) signalRestOver()
+    }, 250)
+    return () => clearInterval(t)
+  }, [timer])
 }
 
 let audio: AudioContext | null = null
