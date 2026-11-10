@@ -2,6 +2,7 @@ import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-do
 import { RestTimerBar } from './components/RestTimerBar'
 import { ExercisesPage } from './pages/ExercisesPage'
 import { HistoryPage } from './pages/HistoryPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { StartPage } from './pages/StartPage'
 import { TemplateEditor } from './pages/TemplateEditor'
 import { WorkoutPage } from './pages/WorkoutPage'
@@ -24,6 +25,10 @@ function TabBar() {
         <span aria-hidden>📋</span>
         Ejercicios
       </NavLink>
+      <NavLink to="/settings">
+        <span aria-hidden>⚙️</span>
+        Ajustes
+      </NavLink>
     </nav>
   )
 }
@@ -38,6 +43,7 @@ export default function App() {
           <Route path="/templates/:id" element={<TemplateEditor />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/exercises" element={<ExercisesPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<StartPage />} />
         </Routes>
       </main>
