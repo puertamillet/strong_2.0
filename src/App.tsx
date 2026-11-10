@@ -1,4 +1,5 @@
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { Icon } from './components/icons'
 import { RestTimerBar } from './components/RestTimerBar'
 import { ExercisesPage } from './pages/ExercisesPage'
 import { HistoryPage } from './pages/HistoryPage'
@@ -14,19 +15,19 @@ function TabBar() {
   return (
     <nav className="tab-bar">
       <NavLink to="/" end>
-        <span aria-hidden>🏋️</span>
+        <Icon name="train" />
         Entrenar
       </NavLink>
       <NavLink to="/history">
-        <span aria-hidden>🕑</span>
+        <Icon name="history" />
         Historial
       </NavLink>
       <NavLink to="/exercises">
-        <span aria-hidden>📋</span>
+        <Icon name="exercises" />
         Ejercicios
       </NavLink>
       <NavLink to="/settings">
-        <span aria-hidden>⚙️</span>
+        <Icon name="settings" />
         Ajustes
       </NavLink>
     </nav>

@@ -606,25 +606,19 @@ h3 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  font-size: 0.72rem;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
   color: var(--muted);
   text-decoration: none;
-}
-
-.tab-bar a span {
-  font-size: 1.3rem;
-  filter: grayscale(1);
-  opacity: 0.7;
 }
 
 .tab-bar a.active {
   color: var(--accent);
 }
 
-.tab-bar a.active span {
-  filter: none;
-  opacity: 1;
+.tab-bar a.active .icon {
+  stroke-width: 2.2;
 }
 
 /* Rest timer */
