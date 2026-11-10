@@ -14,7 +14,9 @@ import {
   saveFile,
   type ImportSummary,
 } from '../lib/backup'
-import { fmtDate } from '../lib/format'
+import { fmtDate, fmtDateTime } from '../lib/format'
+import { setKeepAwake, useKeepAwakeSetting, wakeLockSupported } from '../lib/keepAwake'
+import { signalRestOver } from '../lib/restTimer'
 import { seedIfEmpty } from '../seed'
 
 type Status = { kind: 'idle' } | { kind: 'busy'; text: string } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
@@ -29,6 +31,7 @@ export function SettingsPage() {
     ])
     return { workouts, exercises, templates }
   }, [])
+  const keepAwake = useKeepAwakeSetting()
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [lastBackup, setLastBackup] = useState(getLastBackup)
   const [openedAt] = useState(Date.now)
@@ -109,6 +112,29 @@ export function SettingsPage() {
       <header className="page-header">
         <h1>Ajustes</h1>
       </header>
+
+      <section className="card settings-section">
+        <h2>Entreno</h2>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={wakeLockSupported && keepAwake}
+            disabled={!wakeLockSupported}
+            onChange={(e) => setKeepAwake(e.target.checked)}
+          />
+          Mantener la pantalla encendida durante el entreno
+        </label>
+        {!wakeLockSupported && (
+          <p className="muted small-text">Este navegador no permite mantener la pantalla encendida.</p>
+        )}
+        <p className="muted small-text">
+          Al acabar el descanso suena una campana de ring si la app está en pantalla. Si no la oyes, quita el modo
+          silencio del iPhone.
+        </p>
+        <button className="btn full" onClick={signalRestOver}>
+          Probar la campana
+        </button>
+      </section>
 
       <section className="card settings-section">
         <h2>Importar desde Strong</h2>
@@ -207,6 +233,10 @@ export function SettingsPage() {
           Borrar todos los datos
         </button>
       </section>
+
+      <p className="app-version muted small-text">
+        Versión {__APP_VERSION__} · {fmtDateTime(Date.parse(__BUILD_TIME__))}
+      </p>
     </div>
   )
 }

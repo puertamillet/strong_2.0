@@ -1,4 +1,8 @@
 import { useSyncExternalStore } from 'react'
+import { ringBell } from './bell'
+
+/** Seconds added or taken away by the rest bar's − and + buttons. */
+export const REST_STEP = 10
 
 /**
  * Global rest timer. Stored as an absolute end time so it stays correct when the
@@ -38,10 +42,12 @@ function set(next: RestTimerState | null) {
 export const restTimer = {
   start(seconds: number) {
     if (seconds <= 0) return
+    primeAudio()
     set({ endsAt: Date.now() + seconds * 1000, total: seconds })
   },
   adjust(deltaSeconds: number) {
     if (!state) return
+    primeAudio()
     const endsAt = state.endsAt + deltaSeconds * 1000
     if (endsAt <= Date.now()) set(null)
     else set({ endsAt, total: Math.max(1, state.total + deltaSeconds) })
@@ -60,7 +66,29 @@ export function useRestTimer(): RestTimerState | null {
   return useSyncExternalStore(subscribe, () => state)
 }
 
-/** Short beep + vibration when the rest is over (only while the app is visible). */
+let audio: AudioContext | null = null
+
+/**
+ * Gets the shared audio context running. iOS only lets a page play sound from a
+ * context started during a tap, so this runs when a rest starts (the tap on ✓) and
+ * the bell reuses the same context when the rest is over.
+ */
+export function primeAudio(): AudioContext | null {
+  try {
+    if (!audio) {
+      const Ctx =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!Ctx) return null
+      audio = new Ctx()
+    }
+    if (audio.state !== 'running') void audio.resume().catch(() => {})
+    return audio
+  } catch {
+    return null
+  }
+}
+
+/** Boxing-ring bell, plus a vibration where supported (not on iPhone), when the rest is over. */
 export function signalRestOver(): void {
   try {
     navigator.vibrate?.([200, 100, 200])
@@ -68,21 +96,8 @@ export function signalRestOver(): void {
     // ignore
   }
   try {
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    const ctx = new Ctx()
-    const beep = (at: number) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.frequency.value = 880
-      gain.gain.setValueAtTime(0.3, ctx.currentTime + at)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + at + 0.25)
-      osc.connect(gain).connect(ctx.destination)
-      osc.start(ctx.currentTime + at)
-      osc.stop(ctx.currentTime + at + 0.25)
-    }
-    beep(0)
-    beep(0.35)
-    setTimeout(() => void ctx.close(), 1000)
+    const ctx = primeAudio()
+    if (ctx) ringBell(ctx)
   } catch {
     // Audio not available.
   }

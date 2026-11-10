@@ -1,6 +1,9 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { Icon } from './components/icons'
 import { RestTimerBar } from './components/RestTimerBar'
+import { useKeepAwakeSetting, useScreenWakeLock } from './lib/keepAwake'
+import { getActiveWorkout } from './lib/workouts'
 import { ExerciseDetailPage } from './pages/ExerciseDetailPage'
 import { ExercisesPage } from './pages/ExercisesPage'
 import { HistoryPage } from './pages/HistoryPage'
@@ -36,6 +39,10 @@ function TabBar() {
 }
 
 export default function App() {
+  const keepAwake = useKeepAwakeSetting()
+  const training = useLiveQuery(async () => (await getActiveWorkout()) !== undefined, [])
+  useScreenWakeLock(keepAwake && training === true)
+
   return (
     <HashRouter>
       <main className="app">
