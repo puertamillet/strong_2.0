@@ -14,6 +14,7 @@ export const EQUIPMENT = [
   'Barra',
   'Kettlebell',
   'Cables',
+  'Multipower',
   'Máquina de discos',
   'Máquina de placas',
 ] as const
