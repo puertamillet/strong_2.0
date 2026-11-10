@@ -9,7 +9,11 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 - Catálogo de ejercicios con buscador y grupos musculares.
 - Historial de entrenos (editable).
 
-Próximos pasos: importar el historial exportado de Strong (CSV), gráficas de progreso y récords, y publicación.
+Próximos pasos: importar el historial exportado de Strong (CSV), gráficas de progreso y récords.
+
+## Publicación
+
+Cada push a `main` publica la app en GitHub Pages (`.github/workflows/deploy.yml`): https://puertamillet.github.io/strong_2.0/
 
 ## Desarrollo
 
