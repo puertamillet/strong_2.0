@@ -6,7 +6,10 @@
 export interface DialogOption<T> {
   label: string
   value: T
-  style?: 'primary' | 'danger' | 'plain'
+  /** primary: filled; tinted: accent text on a light accent; danger and danger-tinted: the same in red. */
+  style?: 'primary' | 'tinted' | 'danger' | 'danger-tinted' | 'plain'
+  /** Smaller second line, e.g. what the option will change. */
+  detail?: string
 }
 
 export interface DialogRequest {

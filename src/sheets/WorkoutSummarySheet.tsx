@@ -28,6 +28,11 @@ export function WorkoutSummaryRoute() {
   const location = useLocation()
   const close = useCloseSheet()
   const workout = useLiveQuery(() => db.workouts.get(id).then((w) => w ?? null), [id])
+  // The template the workout was started from, if it still exists (null: none).
+  const template = useLiveQuery(
+    async () => (workout?.templateId ? ((await db.templates.get(workout.templateId)) ?? null) : null),
+    [workout?.templateId],
+  )
   const exercises = useExerciseMap()
   const context = useExerciseContexts(id, workout?.exerciseIds ?? [], workout?.startedAt ?? 0)
   const [editing, setEditing] = useState(false)
@@ -91,11 +96,14 @@ export function WorkoutSummaryRoute() {
               onOpen={() => setDetail(e.exerciseId)}
             />
           ))}
-          <div className="stack">
-            <button className="btn" onClick={() => void saveTemplate(workout)}>
-              Guardar como plantilla
-            </button>
-          </div>
+          {/* A workout from a template already offered to update it when finishing. */}
+          {template === null && (
+            <div className="stack">
+              <button className="btn" onClick={() => void saveTemplate(workout)}>
+                Guardar como plantilla
+              </button>
+            </div>
+          )}
           {editing && <EditWorkout workout={workout} onClose={() => setEditing(false)} onDeleted={close} />}
         </>
       )}

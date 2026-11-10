@@ -17,7 +17,7 @@ import {
 } from '../lib/backup'
 import { fmtDate, fmtDateTime } from '../lib/format'
 import { setKeepAwake, useKeepAwakeSetting, wakeLockSupported } from '../lib/keepAwake'
-import { signalRestOver } from '../lib/restTimer'
+import { setSoundInSilentMode, signalRestOver, silentModeSoundSupported, useSoundInSilentMode } from '../lib/sound'
 import { applyTemplateImport, exportTemplatesCsv, prepareTemplateImport } from '../lib/templatesCsv'
 import { seedIfEmpty } from '../seed'
 
@@ -34,6 +34,7 @@ export function SettingsPage() {
     return { workouts, exercises, templates }
   }, [])
   const keepAwake = useKeepAwakeSetting()
+  const soundInSilentMode = useSoundInSilentMode()
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [lastBackup, setLastBackup] = useState(getLastBackup)
   const [openedAt] = useState(Date.now)
@@ -184,11 +185,25 @@ export function SettingsPage() {
           <p className="muted small-text">Este navegador no permite mantener la pantalla encendida.</p>
         )}
         <p className="muted small-text">
-          Al acabar el descanso suena una campana de ring si la app está en pantalla. Si no la oyes, quita el modo
-          silencio del iPhone.
+          Al acabar el descanso suena un ping si la app está en pantalla. Con el iPhone bloqueado o en otra app no
+          puede sonar: iOS congela las apps web.
+        </p>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={silentModeSoundSupported && soundInSilentMode}
+            disabled={!silentModeSoundSupported}
+            onChange={(e) => setSoundInSilentMode(e.target.checked)}
+          />
+          Sonar aunque el iPhone esté en silencio
+        </label>
+        <p className="muted small-text">
+          {silentModeSoundSupported
+            ? 'Para sonar en silencio, iOS trata el ping como música: si estás escuchando música o un podcast, se pausa al sonar.'
+            : 'Este navegador no permite sonar en modo silencio: si no oyes el ping, quita el modo silencio.'}
         </p>
         <button className="btn full" onClick={signalRestOver}>
-          Probar la campana
+          Probar el sonido
         </button>
       </section>
 

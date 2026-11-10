@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { askText, choose, confirmDialog, notify } from '../lib/dialog'
+import { askText, confirmDialog, notify } from '../lib/dialog'
 import { ExerciseCard } from '../components/ExerciseCard'
 import { ExercisePicker } from '../components/ExercisePicker'
 import { RestTimerBar } from '../components/RestTimerBar'
@@ -11,16 +11,15 @@ import { fmtClock } from '../lib/format'
 import { useExerciseContexts, useExerciseMap } from '../lib/hooks'
 import { restTimer, useRestTimer } from '../lib/restTimer'
 import { useCloseSheet } from '../lib/sheets'
+import { offerTemplateUpdate } from '../lib/templateUpdate'
 import { useNow } from '../lib/useNow'
 import {
   addExercisesToWorkout,
   countDoneSets,
-  differsFromTemplate,
   discardWorkout,
   finishWorkout,
   mutateWorkout,
   saveAsTemplate,
-  syncTemplate,
 } from '../lib/workouts'
 import { ExerciseDetail } from '../pages/ExerciseDetailPage'
 
@@ -59,6 +58,11 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
   const exercises = useExerciseMap()
   const context = useExerciseContexts(workout.id, workout.exerciseIds, workout.startedAt)
   const timer = useRestTimer()
+  // The template the workout was started from, if it still exists (null: none).
+  const template = useLiveQuery(
+    async () => (workout.templateId ? ((await db.templates.get(workout.templateId)) ?? null) : null),
+    [workout.templateId],
+  )
   const [picking, setPicking] = useState(false)
   const [detail, setDetail] = useState<string | null>(null)
   const id = workout.id
@@ -71,8 +75,10 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
   }
 
   async function finish() {
-    const total = workout.exercises.reduce((n, e) => n + e.sets.length, 0)
-    const done = countDoneSets(workout)
+    // As saved: a set ticked a moment ago may not have reached `workout` yet.
+    const current = (await db.workouts.get(id)) ?? workout
+    const total = current.exercises.reduce((n, e) => n + e.sets.length, 0)
+    const done = countDoneSets(current)
     if (done === 0) {
       const cancel = await confirmDialog({
         title: 'No has marcado ninguna serie',
@@ -93,30 +99,18 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
       })
       if (!ok) return
     }
-    const template = workout.templateId ? await db.templates.get(workout.templateId) : undefined
-    let structure = false
-    if (template && differsFromTemplate(workout, template)) {
-      const answer = await choose(
-        `¿Actualizar la plantilla «${template.name}»?`,
-        [
-          { label: 'Actualizar la plantilla', value: true, style: 'primary' },
-          { label: 'Dejarla como estaba', value: false },
-        ],
-        'Has cambiado ejercicios, series o descansos. Los pesos y las repeticiones se guardan en la plantilla siempre.',
-      )
-      if (answer === null) return
-      structure = answer
-    }
+    const from = current.templateId ? await db.templates.get(current.templateId) : undefined
     // The workout as it stands, before finishing drops the unticked sets.
-    const snapshot = structuredClone(workout)
+    const snapshot = (await db.workouts.get(id)) ?? current
     const kept = await finishWorkout(id)
     restTimer.stop()
     if (!kept) {
       minimize()
       return
     }
-    if (template) await syncTemplate(snapshot, template.id, structure)
     navigate(`/history/${id}`, { replace: true, state: location.state })
+    // Like Strong: over the summary, ask whether the template takes today's changes.
+    if (from) await offerTemplateUpdate(snapshot, from)
   }
 
   async function cancel() {
@@ -171,6 +165,7 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
           <ExerciseCard
             key={`${we.exerciseId}-${ei}`}
             mode="active"
+            restKey={`${id}:${ei}`}
             we={we}
             exercise={exercises.get(we.exerciseId)}
             context={context?.get(we.exerciseId)}
@@ -200,7 +195,8 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
         <button className="btn primary-outline" onClick={() => setPicking(true)}>
           Añadir ejercicios
         </button>
-        {workout.exercises.length > 0 && (
+        {/* A workout from a template updates it when finishing; only others are saved as new ones. */}
+        {template === null && workout.exercises.length > 0 && (
           <button className="btn" onClick={() => void saveTemplate()}>
             Guardar como plantilla
           </button>

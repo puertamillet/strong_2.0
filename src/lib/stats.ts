@@ -3,19 +3,13 @@ import { estimated1RM } from './workouts'
 
 type SetLike = Pick<WorkoutSet, 'type' | 'weight' | 'reps'>
 
-/** Total kg lifted (weight × reps), ignoring warm-ups. Unilateral sets count both sides. */
+/** Total kg lifted (weight × reps), ignoring warm-ups. */
 export function volume(w: Workout): number {
   return w.exercises.reduce((sum, e) => sum + setsVolume(e.sets), 0)
 }
 
-function setsVolume(sets: (SetLike & Pick<WorkoutSet, 'sides' | 'second'>)[]): number {
-  return sets.reduce((sum, set) => {
-    if (set.type === 'warmup') return sum
-    const weight = set.weight ?? 0
-    const reps = set.reps ?? 0
-    const other = set.sides === 2 ? (set.second?.weight ?? weight) * (set.second?.reps ?? reps) : 0
-    return sum + weight * reps + other
-  }, 0)
+function setsVolume(sets: SetLike[]): number {
+  return sets.reduce((sum, set) => (set.type === 'warmup' ? sum : sum + (set.weight ?? 0) * (set.reps ?? 0)), 0)
 }
 
 /** Heaviest set by estimated 1RM, ignoring warm-ups. */

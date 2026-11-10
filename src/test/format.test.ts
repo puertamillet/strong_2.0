@@ -36,11 +36,6 @@ describe('format', () => {
     )
   })
 
-  it('shows both sides of a unilateral set when they differ', () => {
-    expect(fmtSet({ weight: 12.5, reps: 10, second: { weight: 12.5, reps: 9 } })).toBe('12,5 kg × 10 / 12,5 kg × 9')
-    expect(fmtSet({ weight: 12.5, reps: 10, second: { weight: 12.5, reps: 10 } })).toBe('12,5 kg × 10')
-  })
-
   it('reads and writes rep ranges', () => {
     expect(parseRange('6-8')).toEqual([6, 8])
     expect(parseRange(' 6 – 8 ')).toEqual([6, 8])

@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { currentDialog, subscribeDialog, type DialogRequest } from '../lib/dialog'
+import { currentDialog, subscribeDialog, type DialogOption, type DialogRequest } from '../lib/dialog'
 import { DurationWheels } from './DurationWheels'
+
+const STYLE_CLASS: Record<NonNullable<DialogOption<unknown>['style']>, string> = {
+  primary: 'primary',
+  tinted: 'primary-outline',
+  danger: 'danger-solid',
+  'danger-tinted': 'danger',
+  plain: '',
+}
 
 /** Shows the dialog asked for with choose(), confirmDialog(), notify() or askText() from lib/dialog. */
 export function DialogHost() {
@@ -59,10 +67,11 @@ function DialogView({ req }: { req: DialogRequest }) {
             <button
               key={i}
               ref={i === 0 ? first : undefined}
-              className={`btn full ${o.style === 'primary' ? 'primary' : o.style === 'danger' ? 'danger-solid' : ''}`}
+              className={`btn full ${STYLE_CLASS[o.style ?? 'plain']} ${o.detail ? 'with-detail' : ''}`}
               onClick={() => pick(o.value)}
             >
               {o.label}
+              {o.detail && <small>{o.detail}</small>}
             </button>
           ))}
         </div>

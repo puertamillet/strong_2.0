@@ -106,7 +106,10 @@ export function catalogEntry(strongName: string): CatalogEntry | undefined {
   return BY_STRONG_NAME.get(normalize(strongName.trim()))
 }
 
-/** Unilateral exercises are done one side at a time: their sets have two sides. */
+/**
+ * Unilateral exercises are done one side at a time. As in Strong, each side is logged as its own
+ * set, so they have twice the sets that were really done (each pair counts as one per muscle).
+ */
 export function isUnilateral(exercise: { name: string; laterality?: Laterality } | undefined): boolean {
   if (!exercise) return false
   return (exercise.laterality ?? catalogEntry(exercise.name)?.laterality) === 'Unilateral'

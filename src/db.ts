@@ -1,16 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { expandTemplateSides, expandWorkoutSides } from './lib/legacy'
 
 /** Kinds of set. A top set is the first, heavier working set; the back off sets after it are lighter. */
 export type SetType = 'normal' | 'warmup' | 'top' | 'backoff' | 'drop' | 'failure'
 
 /** Target reps for a set, e.g. [6, 8]; [8, 8] is exactly 8. */
 export type RepRange = [number, number]
-
-/** The second side of a unilateral set, when its values differ from the first. */
-export interface SideValues {
-  weight: number | null
-  reps: number | null
-}
 
 export interface WorkoutSet {
   type: SetType
@@ -24,14 +19,6 @@ export interface WorkoutSet {
   done: boolean
   /** Rest after this set, in seconds (0 = none). Missing: the exercise's `restSeconds`. */
   rest?: number
-  /** 2 for a unilateral set: one row for both sides, done side by side. */
-  sides?: 2
-  /** Unilateral: rest between the first and the second side. Missing: same as `rest`. */
-  sideRest?: number
-  /** Unilateral: the first side is done; the set is done when the second side is too. */
-  firstDone?: boolean
-  /** Unilateral: the second side's values, when they differ from the first side's. */
-  second?: SideValues
   /** Target reps, from the template. */
   range?: RepRange
 }
@@ -75,10 +62,7 @@ export interface Exercise {
 }
 
 /** A set in a template: its kind, the weight and reps to do (null = take last time's), rests and target reps. */
-export type TemplateSet = Pick<
-  WorkoutSet,
-  'type' | 'weight' | 'reps' | 'seconds' | 'distance' | 'rest' | 'sides' | 'sideRest' | 'second' | 'range'
->
+export type TemplateSet = Pick<WorkoutSet, 'type' | 'weight' | 'reps' | 'seconds' | 'distance' | 'rest' | 'range'>
 
 export interface TemplateExercise {
   exerciseId: string
@@ -104,11 +88,29 @@ export const db = new Dexie('strong2') as Dexie & {
   templates: EntityTable<Template, 'id'>
 }
 
-db.version(1).stores({
+const STORES = {
   exercises: 'id, &name',
   workouts: 'id, startedAt, templateId, *exerciseIds',
   templates: 'id, name, updatedAt',
-})
+}
+
+db.version(1).stores(STORES)
+
+// Version 2: unilateral exercises are one set per side again (see lib/legacy).
+db.version(2)
+  .stores(STORES)
+  .upgrade(async (tx) => {
+    const templates = (await tx.table<Template, string>('templates').toArray()).flatMap((t) => {
+      const next = expandTemplateSides(t)
+      return next === t ? [] : [next]
+    })
+    const workouts = (await tx.table<Workout, string>('workouts').toArray()).flatMap((w) => {
+      const next = expandWorkoutSides(w)
+      return next === w ? [] : [next]
+    })
+    await tx.table('templates').bulkPut(templates)
+    await tx.table('workouts').bulkPut(workouts)
+  })
 
 export const DEFAULT_REST_SECONDS = 120
 
@@ -130,11 +132,6 @@ export function emptySet(type: SetType = 'normal'): WorkoutSet {
 /** Seconds of rest after a set. */
 export function restAfter(set: Pick<WorkoutSet, 'rest'>, exercise: Pick<WorkoutExercise, 'restSeconds'>): number {
   return set.rest ?? exercise.restSeconds
-}
-
-/** Seconds of rest between the two sides of a unilateral set. */
-export function restBetweenSides(set: Pick<WorkoutSet, 'rest' | 'sideRest'>, exercise: Pick<WorkoutExercise, 'restSeconds'>): number {
-  return set.sideRest ?? restAfter(set, exercise)
 }
 
 /** Ask the browser to keep our data (reduces the risk of Safari evicting it). */

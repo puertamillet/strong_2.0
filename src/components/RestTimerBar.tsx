@@ -2,7 +2,7 @@ import { fmtClock } from '../lib/format'
 import { REST_STEP, restTimer, useRestTimer } from '../lib/restTimer'
 import { useNow } from '../lib/useNow'
 
-/** The running rest: time left, −/+ and skip. The bell itself is rung by useRestAlarm. */
+/** The running rest: time left, −/+ and skip. The ping at the end is played by useRestAlarm. */
 export function RestTimerBar() {
   const timer = useRestTimer()
   const now = useNow(250, timer !== null)
