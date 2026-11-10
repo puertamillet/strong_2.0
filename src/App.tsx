@@ -1,6 +1,7 @@
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { Icon } from './components/icons'
 import { RestTimerBar } from './components/RestTimerBar'
+import { ExerciseDetailPage } from './pages/ExerciseDetailPage'
 import { ExercisesPage } from './pages/ExercisesPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/templates/:id" element={<TemplateEditor />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/exercises" element={<ExercisesPage />} />
+          <Route path="/exercises/:id" element={<ExerciseDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<StartPage />} />
         </Routes>

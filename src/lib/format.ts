@@ -1,8 +1,11 @@
 import type { SetType, WorkoutSet } from '../db'
 
+const numFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2, useGrouping: false })
+
+/** Up to two decimals with a decimal comma, e.g. 51,25 (no thousands separator, so it also works in inputs). */
 export function fmtNumber(n: number | null | undefined): string {
   if (n === null || n === undefined) return ''
-  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100)
+  return numFmt.format(n)
 }
 
 const intFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 })
@@ -48,6 +51,13 @@ export function fmtDate(ts: number): string {
 
 export function fmtShortDate(ts: number): string {
   return shortDateFmt.format(ts)
+}
+
+const mediumDateFmt = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+
+/** e.g. "28 sept 2026" */
+export function fmtMediumDate(ts: number): string {
+  return mediumDateFmt.format(ts)
 }
 
 /** Label shown in the "Serie" column: W, D, F, or the working-set number. */
