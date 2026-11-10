@@ -17,11 +17,23 @@ import {
 } from '../lib/backup'
 import { fmtDate, fmtDateTime } from '../lib/format'
 import { setKeepAwake, useKeepAwakeSetting, wakeLockSupported } from '../lib/keepAwake'
+import { disablePush, enablePush, scheduleRestPush, usePushStatus, type PushStatus } from '../lib/push'
+import { useRestTimer } from '../lib/restTimer'
 import { setSoundInSilentMode, signalRestOver, silentModeSoundSupported, useSoundInSilentMode } from '../lib/sound'
 import { applyTemplateImport, exportTemplatesCsv, prepareTemplateImport } from '../lib/templatesCsv'
 import { seedIfEmpty } from '../seed'
 
 type Status = { kind: 'idle' } | { kind: 'busy'; text: string } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
+
+const PUSH_HELP: Record<PushStatus, string> = {
+  on: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Con la app abierta también llega, además del ping.',
+  off: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra).',
+  'no-server':
+    'Esta versión no tiene servidor de avisos. Los pasos para conectarlo (Cloudflare, gratis) están en el README del repositorio.',
+  'not-installed':
+    'Para recibir avisos, añade la app a la pantalla de inicio desde Safari (iOS 16.4 o posterior) y ábrela desde allí.',
+  denied: 'Las notificaciones de la app están desactivadas: actívalas en Ajustes del iPhone → Notificaciones → Strong 2.0.',
+}
 
 export function SettingsPage() {
   const navigate = useNavigate()
@@ -35,6 +47,9 @@ export function SettingsPage() {
   }, [])
   const keepAwake = useKeepAwakeSetting()
   const soundInSilentMode = useSoundInSilentMode()
+  const push = usePushStatus()
+  const rest = useRestTimer()
+  const [pushBusy, setPushBusy] = useState(false)
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [lastBackup, setLastBackup] = useState(getLastBackup)
   const [openedAt] = useState(Date.now)
@@ -164,6 +179,28 @@ export function SettingsPage() {
 
   const daysSinceBackup = lastBackup ? Math.floor((openedAt - lastBackup) / 86_400_000) : null
 
+  async function togglePush(on: boolean) {
+    setPushBusy(true)
+    try {
+      if (on) await enablePush()
+      else await disablePush()
+    } catch (e) {
+      await notify('No se pudieron activar los avisos', e instanceof Error ? e.message : String(e))
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
+  async function testPush() {
+    // One rest per phone on the server: a test now would replace the real one.
+    if (rest) {
+      await notify('Hay un descanso en marcha', 'Te llegará el aviso cuando acabe: bloquea el iPhone y espera.')
+      return
+    }
+    scheduleRestPush(Date.now() + 10_000)
+    await notify('Bloquea el iPhone', 'En 10 segundos te llegará el aviso, como al acabar un descanso.')
+  }
+
   return (
     <div className="page">
       <header className="page-header">
@@ -185,8 +222,8 @@ export function SettingsPage() {
           <p className="muted small-text">Este navegador no permite mantener la pantalla encendida.</p>
         )}
         <p className="muted small-text">
-          Al acabar el descanso suena un ping si la app está en pantalla. Con el iPhone bloqueado o en otra app no
-          puede sonar: iOS congela las apps web.
+          Al acabar el descanso suena un ping si la app está en pantalla. Con el iPhone bloqueado o en otra app, iOS
+          congela las apps web y no puede sonar: para eso está el aviso de abajo.
         </p>
         <label className="toggle">
           <input
@@ -205,6 +242,21 @@ export function SettingsPage() {
         <button className="btn full" onClick={signalRestOver}>
           Probar el sonido
         </button>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={push === 'on'}
+            disabled={pushBusy || push === 'no-server' || push === 'not-installed'}
+            onChange={(e) => void togglePush(e.target.checked)}
+          />
+          Avisar con el iPhone bloqueado
+        </label>
+        <p className="muted small-text">{PUSH_HELP[push]}</p>
+        {push === 'on' && (
+          <button className="btn full" onClick={() => void testPush()}>
+            Probar el aviso
+          </button>
+        )}
       </section>
 
       <section className="card settings-section">

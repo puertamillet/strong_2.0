@@ -1,0 +1,19 @@
+// Cloudflare Worker for the rest timer notifications (see src/index.ts and the README).
+// Published by .github/workflows/deploy.yml when the repository has the Cloudflare secrets.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "strong2-avisos",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [{ "name": "ALARMS", "class_name": "RestAlarms" }]
+  },
+  // Free plan: Durable Objects must use SQLite storage.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RestAlarms"] }],
+  "vars": {
+    "ALLOWED_ORIGINS": "https://puertamillet.github.io",
+    "VAPID_SUBJECT": "https://puertamillet.github.io/strong_2.0/"
+  },
+  "observability": { "enabled": true }
+}

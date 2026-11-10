@@ -1,0 +1,12 @@
+{
+  "name": "strong2-avisos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.155.0"
+  }
+}

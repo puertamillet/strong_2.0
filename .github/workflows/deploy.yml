@@ -2,6 +2,10 @@ name: Deploy
 
 # Publishes the app to GitHub Pages on every push to main.
 # Requires Settings → Pages → Source: "GitHub Actions".
+#
+# With the secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID it also publishes the rest
+# notifications server (push-server/, a free Cloudflare Worker) and builds the app with its
+# address. Without them the app is published without notifications. See the README.
 on:
   push:
     branches: [main]
@@ -17,7 +21,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  push-server:
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - id: secrets
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Sin los secretos de Cloudflare: la app se publica sin avisos con el iPhone bloqueado (ver README)."
+          fi
+      - if: steps.secrets.outputs.ok
+        uses: actions/checkout@v4
+      - if: steps.secrets.outputs.ok
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: push-server/package-lock.json
+      - if: steps.secrets.outputs.ok
+        run: npm ci
+        working-directory: push-server
+      - id: deploy
+        if: steps.secrets.outputs.ok
+        working-directory: push-server
+        run: |
+          set -o pipefail
+          npx wrangler deploy | tee deploy.log
+          url=$(grep -oE 'https://[a-z0-9.-]+[.]workers[.]dev' deploy.log | head -n 1)
+          if [ -z "$url" ]; then
+            # Not in the output: ask Cloudflare for the account's workers.dev subdomain.
+            sub=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty') || true
+            [ -n "$sub" ] && url="https://strong2-avisos.$sub.workers.dev"
+          fi
+          if [ -z "$url" ]; then
+            echo "::error::No se encontró la dirección del servidor de avisos (¿tiene la cuenta un subdominio workers.dev?)"
+            exit 1
+          fi
+          echo "Servidor de avisos: $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: push-server
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +80,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          VITE_PUSH_URL: ${{ needs.push-server.outputs.url }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

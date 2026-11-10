@@ -47,6 +47,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest}'],
+        // Rest notifications from the push server (public/push-sw.js).
+        importScripts: ['push-sw.js'],
       },
     }),
   ],
