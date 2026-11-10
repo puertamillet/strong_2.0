@@ -4,12 +4,14 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 
 ## Funciones
 
-- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, drop set, al fallo) y temporizador de descanso por ejercicio, con botones de −10 y +10 s y una campana de ring al terminar (se puede probar en Ajustes).
+- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, top set, back off, drop set, al fallo) y descanso propio en cada serie, elegido con una rueda de minutos y segundos de 10 en 10. El temporizador tiene botones de −10 y +10 s y una campana de ring al terminar (se puede probar en Ajustes).
+- Ejercicios unilaterales: cada serie es una fila con los dos lados (se marca lado a lado), con descanso entre lados y valores distintos por lado si hace falta.
+- Notas fijas en amarillo, siempre visibles con el ejercicio, y rangos de repeticiones por serie en las plantillas.
 - La pantalla no se apaga sola durante el entreno (opción en Ajustes, activada por defecto).
-- Plantillas de rutina: crear, editar, empezar un entreno desde una plantilla y actualizarla al terminar.
+- Plantillas de rutina: crear, editar, empezar un entreno desde una plantilla y actualizarla al terminar. Se importan y exportan en CSV (una fila por serie) desde Ajustes.
 - Catálogo de ejercicios con buscador y grupos musculares.
 - Historial de entrenos (editable).
-- Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez. Opcionalmente crea plantillas con las rutinas de los últimos 3 meses.
+- Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez.
 - Copia de seguridad completa en JSON (guardar y restaurar) y exportación a CSV con el formato de Strong.
 
 - Progreso por ejercicio: gráficas de 1RM estimado, peso máximo, volumen y repeticiones (3 meses, 1 año o todo), récords personales y mejor peso por repeticiones, e historial de sesiones.

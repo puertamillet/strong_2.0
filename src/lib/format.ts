@@ -1,4 +1,4 @@
-import type { SetType, WorkoutSet } from '../db'
+import type { RepRange, SetType, WorkoutSet } from '../db'
 
 const numFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2, useGrouping: false })
 
@@ -15,10 +15,38 @@ export function fmtInt(n: number): string {
   return intFmt.format(Math.round(n))
 }
 
-export function fmtSet(s: Pick<WorkoutSet, 'weight' | 'reps'>): string {
-  if (s.weight === null && s.reps === null) return '—'
-  if (!s.weight) return `${fmtNumber(s.reps)} reps`
-  return `${fmtNumber(s.weight)} kg × ${fmtNumber(s.reps)}`
+function fmtValues(weight: number | null, reps: number | null): string {
+  if (weight === null && reps === null) return '—'
+  if (!weight) return `${fmtNumber(reps)} reps`
+  return `${fmtNumber(weight)} kg × ${fmtNumber(reps)}`
+}
+
+/** "60 kg × 8"; a unilateral set with different sides shows both: "12,5 kg × 10 / 12,5 kg × 9". */
+export function fmtSet(s: Pick<WorkoutSet, 'weight' | 'reps' | 'second'>): string {
+  const first = fmtValues(s.weight, s.reps)
+  if (!s.second || (s.second.weight === s.weight && s.second.reps === s.reps)) return first
+  return `${first} / ${fmtValues(s.second.weight ?? s.weight, s.second.reps ?? s.reps)}`
+}
+
+/** "6–8", or "8" for an exact target. */
+export function fmtRange(r: RepRange): string {
+  return r[0] === r[1] ? String(r[0]) : `${r[0]}–${r[1]}`
+}
+
+/** Reads "6-8", "6–8" or "8". Empty → null; anything else → undefined (invalid). */
+export function parseRange(text: string): RepRange | null | undefined {
+  const t = text.trim()
+  if (!t) return null
+  const m = /^(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?$/.exec(t)
+  if (!m) return undefined
+  const a = Number(m[1])
+  const b = m[2] === undefined ? a : Number(m[2])
+  return a <= b ? [a, b] : [b, a]
+}
+
+/** Rest for display: "2:30", or "Sin descanso". */
+export function fmtRest(seconds: number): string {
+  return seconds > 0 ? fmtClock(seconds) : 'Sin descanso'
 }
 
 export function fmtDuration(ms: number): string {
@@ -73,11 +101,15 @@ export function fmtDateTime(ts: number): string {
   return dateTimeFmt.format(ts)
 }
 
-/** Label shown in the "Serie" column: W, D, F, or the working-set number. */
+/** Label shown in the "Serie" column: a letter for special sets, or the working-set number. */
 export function setLabel(type: SetType, workingIndex: number): string {
   switch (type) {
     case 'warmup':
       return 'C'
+    case 'top':
+      return 'T'
+    case 'backoff':
+      return 'B'
     case 'drop':
       return 'D'
     case 'failure':
@@ -96,6 +128,8 @@ export function setLabels(sets: { type: SetType }[]): string[] {
 export const SET_TYPE_NAMES: Record<SetType, string> = {
   normal: 'Normal',
   warmup: 'Calentamiento',
+  top: 'Top set',
+  backoff: 'Back off',
   drop: 'Drop set',
   failure: 'Al fallo',
 }

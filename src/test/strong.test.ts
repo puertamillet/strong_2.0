@@ -8,7 +8,6 @@ import {
   parseStrongCsv,
   parseStrongDate,
   parseStrongDuration,
-  templatesFromHistory,
   workoutsToStrongCsv,
 } from '../lib/strong'
 
@@ -88,14 +87,6 @@ describe('Strong CSV import', () => {
     expect(() => parseStrongCsv('', [])).toThrow(/vacío/)
   })
 
-  it('builds templates from recent routines only, skipping generic names', () => {
-    const { workouts } = parseStrongCsv(SAMPLE, existing)
-    const templates = templatesFromHistory(workouts, [])
-    expect(templates.map((t) => t.name)).toEqual(['Empuje A'])
-    expect(templates[0].exercises[0].sets.map((s) => s.type)).toEqual(['warmup', 'normal', 'normal', 'drop'])
-    expect(templatesFromHistory(workouts, ['empuje a'])).toEqual([])
-  })
-
   it('round-trips through the Strong CSV export', () => {
     const { workouts, newExercises } = parseStrongCsv(SAMPLE, existing)
     const names = new Map([...existing, ...newExercises].map((e) => [e.id, e.name]))
@@ -120,14 +111,14 @@ describe('importStrongCsv (database)', () => {
     await db.exercises.bulkAdd(existing)
   })
 
-  it('imports once and skips duplicates on re-import', async () => {
-    const first = await importStrongCsv(SAMPLE, { createTemplates: true })
-    expect(first).toMatchObject({ added: 3, skipped: 0, newExercises: 3, templates: ['Empuje A'] })
-    const second = await importStrongCsv(SAMPLE, { createTemplates: true })
-    expect(second).toMatchObject({ added: 0, skipped: 3, newExercises: 0, templates: [] })
+  it('imports once, skips duplicates on re-import and makes no templates', async () => {
+    const first = await importStrongCsv(SAMPLE)
+    expect(first).toEqual({ added: 3, skipped: 0, newExercises: 3 })
+    const second = await importStrongCsv(SAMPLE)
+    expect(second).toEqual({ added: 0, skipped: 3, newExercises: 0 })
     expect(await db.workouts.count()).toBe(3)
     expect(await db.exercises.count()).toBe(4)
-    expect(await db.templates.count()).toBe(1)
+    expect(await db.templates.count()).toBe(0)
   })
 })
 
@@ -142,6 +133,5 @@ describe.runIf(realCsv)('real Strong export', () => {
     const sets = workouts.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0)
     expect(sets).toBe(setRows.length)
     console.log(`${workouts.length} entrenos, ${newExercises.length} ejercicios, ${sets} series`)
-    console.log('Plantillas:', templatesFromHistory(workouts, []).map((t) => t.name).join(', '))
   })
 })

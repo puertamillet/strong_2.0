@@ -13,6 +13,10 @@
   --warmup: #e69a00;
   --drop: #8a5cf6;
   --failure: #e5383b;
+  --top: #c2185b;
+  --backoff: #00838f;
+  --sticky-bg: #fff2a8;
+  --sticky-text: #3d3200;
   /* Chart series color, validated per mode against the card surface. */
   --chart-1: #0a7cff;
   --pr: #8a5800;
@@ -40,6 +44,10 @@
     --chart-1: #3390f7;
     --pr: #f5b82e;
     --seg-selected: #5a5a5f;
+    --top: #f06292;
+    --backoff: #4dd0e1;
+    --sticky-bg: #4a3f0c;
+    --sticky-text: #ffe98a;
   }
 }
 
@@ -372,6 +380,14 @@ h3 {
   color: var(--failure);
 }
 
+.set-type.type-top {
+  color: var(--top);
+}
+
+.set-type.type-backoff {
+  color: var(--backoff);
+}
+
 .set-type.add {
   color: var(--accent);
 }
@@ -382,6 +398,110 @@ h3 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.prev:not(.pr-badge) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.prev-values,
+.prev-range {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prev-range {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* A unilateral set with its first side done. */
+.set-row.half {
+  background: color-mix(in srgb, var(--done) 55%, transparent);
+}
+
+.check-btn.half {
+  background: linear-gradient(90deg, var(--done-strong) 50%, var(--surface-2) 50%);
+  color: #fff;
+}
+
+.second-row {
+  margin-top: -4px;
+}
+
+.side-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.1;
+}
+
+.range-input {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* Rest after each set (and between the sides of a unilateral set). */
+.rest-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 1px 0 3px;
+}
+
+.rest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.rest-chip.zero {
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+/* Yellow note that is always shown with the exercise. */
+.sticky-note {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--sticky-bg);
+  color: var(--sticky-text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.35;
+  resize: none;
+  outline: none;
+}
+
+.sticky-note::placeholder {
+  color: color-mix(in srgb, var(--sticky-text) 60%, transparent);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
 }
 
 .cell-input {
@@ -1269,6 +1389,14 @@ details.table-view summary {
   color: var(--failure);
 }
 
+.session-sets .set-tag.type-top {
+  color: var(--top);
+}
+
+.session-sets .set-tag.type-backoff {
+  color: var(--backoff);
+}
+
 .pr-badge {
   display: inline-flex;
   align-items: center;
@@ -1321,4 +1449,71 @@ details.table-view summary {
 .text-strong {
   color: var(--text);
   font-weight: 600;
+}
+
+/* Minutes and seconds wheels (rest picker). */
+.wheels {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+
+.wheels::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.wheel {
+  position: relative;
+  width: 64px;
+  height: 200px;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+  mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+  outline: none;
+}
+
+.wheel::-webkit-scrollbar {
+  display: none;
+}
+
+.wheel-pad {
+  height: 80px;
+}
+
+.wheel-item {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.wheel-item.selected {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.wheel-unit {
+  position: relative;
+  min-width: 28px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.95rem;
 }

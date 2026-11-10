@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { confirmDialog } from '../lib/dialog'
+import { confirmDialog, notify } from '../lib/dialog'
 import { db } from '../db'
 import {
   createBackup,
@@ -18,6 +18,7 @@ import {
 import { fmtDate, fmtDateTime } from '../lib/format'
 import { setKeepAwake, useKeepAwakeSetting, wakeLockSupported } from '../lib/keepAwake'
 import { signalRestOver } from '../lib/restTimer'
+import { applyTemplateImport, exportTemplatesCsv, prepareTemplateImport } from '../lib/templatesCsv'
 import { seedIfEmpty } from '../seed'
 
 type Status = { kind: 'idle' } | { kind: 'busy'; text: string } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
@@ -36,11 +37,11 @@ export function SettingsPage() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [lastBackup, setLastBackup] = useState(getLastBackup)
   const [openedAt] = useState(Date.now)
-  const [createTemplates, setCreateTemplates] = useState(true)
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const [summary, setSummary] = useState<ImportSummary | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const backupInput = useRef<HTMLInputElement>(null)
+  const templatesInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     void navigator.storage?.persisted?.().then(setPersisted).catch(() => setPersisted(null))
@@ -52,9 +53,45 @@ export function SettingsPage() {
     setSummary(null)
     setStatus({ kind: 'busy', text: 'Importando…' })
     try {
-      const result = await importStrongCsv(await file.text(), { createTemplates })
+      const result = await importStrongCsv(await file.text())
       setSummary(result)
       setStatus({ kind: 'ok', text: 'Importación completada.' })
+    } catch (e) {
+      setStatus({ kind: 'error', text: (e as Error).message })
+    }
+  }
+
+  async function onImportTemplates(file: File) {
+    setSummary(null)
+    try {
+      const plan = await prepareTemplateImport(await file.text())
+      const names = plan.templates.map((t) => `«${t.name}»`).join(', ')
+      const details = [
+        names + '.',
+        plan.replaced.length ? `Sustituyen a las que ya tienes con el mismo nombre: ${plan.replaced.join(', ')}.` : '',
+        plan.newExercises.length
+          ? `Ejercicios nuevos: ${plan.newExercises.map((e) => e.name).join(', ')}.`
+          : '',
+      ]
+      const n = plan.templates.length
+      const ok = await confirmDialog({
+        title: `¿Importar ${n} ${n === 1 ? 'plantilla' : 'plantillas'}?`,
+        message: details.filter(Boolean).join(' '),
+        confirm: 'Importar',
+      })
+      if (!ok) return
+      await applyTemplateImport(plan)
+      await notify('Plantillas importadas', `Ya están en Entrenar: ${names}.`)
+    } catch (e) {
+      await notify('No se ha podido importar', (e as Error).message)
+    }
+  }
+
+  async function onExportTemplates() {
+    setStatus({ kind: 'busy', text: 'Generando CSV…' })
+    try {
+      await saveFile(`strong2-plantillas-${fileStamp()}.csv`, await exportTemplatesCsv(), 'text/csv')
+      setStatus({ kind: 'idle' })
     } catch (e) {
       setStatus({ kind: 'error', text: (e as Error).message })
     }
@@ -161,10 +198,6 @@ export function SettingsPage() {
           En Strong: Ajustes → Exportar datos. Guarda el CSV en Archivos y selecciónalo aquí. Puedes repetir la
           importación cuando quieras: los entrenos que ya estén no se duplican.
         </p>
-        <label className="toggle">
-          <input type="checkbox" checked={createTemplates} onChange={(e) => setCreateTemplates(e.target.checked)} />
-          Crear plantillas con mis rutinas de los últimos 3 meses
-        </label>
         <button className="btn primary full" disabled={busy} onClick={() => csvInput.current?.click()}>
           Elegir CSV de Strong
         </button>
@@ -186,16 +219,37 @@ export function SettingsPage() {
               {summary.skipped > 0 && <> ({summary.skipped} ya estaban)</>}, <strong>{summary.newExercises}</strong>{' '}
               ejercicios nuevos.
             </p>
-            {summary.templates.length > 0 && (
-              <p>
-                Plantillas creadas: <strong>{summary.templates.join(', ')}</strong>.
-              </p>
-            )}
             <button className="link strong" onClick={() => navigate('/history')}>
               Ver historial ›
             </button>
           </div>
         )}
+      </section>
+
+      <section className="card settings-section">
+        <h2>Plantillas</h2>
+        <p className="muted small-text">
+          Importa plantillas desde un CSV con una fila por serie (peso, repeticiones, rango, descansos y notas), o
+          exporta las tuyas para editarlas en Numbers o Excel. Las plantillas importadas sustituyen a las que se
+          llamen igual.
+        </p>
+        <button className="btn primary full" disabled={busy} onClick={() => templatesInput.current?.click()}>
+          Importar plantillas (CSV)
+        </button>
+        <input
+          ref={templatesInput}
+          type="file"
+          accept=".csv,text/csv,text/comma-separated-values"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void onImportTemplates(f)
+          }}
+        />
+        <button className="btn full" disabled={busy || !counts?.templates} onClick={onExportTemplates}>
+          Exportar plantillas (CSV)
+        </button>
       </section>
 
       <section className="card settings-section">

@@ -15,6 +15,8 @@ export interface DialogRequest {
   message?: string
   options: DialogOption<unknown>[]
   input?: { initial: string; placeholder?: string }
+  /** Minutes and seconds wheels, in steps of `step` seconds up to `max`. */
+  duration?: { initial: number; step: number; max: number }
   resolve: (value: unknown) => void
 }
 
@@ -76,6 +78,28 @@ export async function askText(title: string, initial = '', confirm = 'Guardar', 
     ],
   })
   return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+/**
+ * Asks for a rest with minute and second wheels (10 s steps by default). Resolves to the
+ * seconds chosen (0 for "Sin descanso"), or null if cancelled.
+ */
+export async function pickDuration(
+  title: string,
+  initial: number,
+  opts: { message?: string; step?: number; max?: number } = {},
+): Promise<number | null> {
+  const value = await show({
+    title,
+    message: opts.message,
+    duration: { initial, step: opts.step ?? 10, max: opts.max ?? 600 },
+    options: [
+      { label: 'Guardar', value: true, style: 'primary' },
+      { label: 'Sin descanso', value: 0 },
+      { label: 'Cancelar', value: false },
+    ],
+  })
+  return typeof value === 'number' ? value : null
 }
 
 export function subscribeDialog(listener: () => void): () => void {

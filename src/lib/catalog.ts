@@ -1,5 +1,6 @@
 import raw from '../data/ejercicios.csv?raw'
 import { parseCsv } from './csv'
+import { normalize } from './format'
 
 /**
  * Exercise catalog: the source of truth for names in Spanish and classifications.
@@ -96,4 +97,17 @@ export const CATALOG: readonly CatalogEntry[] = parseCatalog(raw)
 /** Key that identifies one exercise: rows with the same key are the same exercise. */
 export function catalogKey(e: Pick<CatalogEntry, 'name' | 'equipment' | 'laterality'>): string {
   return `${e.name}|${e.equipment}|${e.laterality}`
+}
+
+const BY_STRONG_NAME = new Map(CATALOG.map((e) => [normalize(e.strong), e]))
+
+/** The catalog entry for a name as Strong writes it, e.g. "Bench Press (Barbell)". */
+export function catalogEntry(strongName: string): CatalogEntry | undefined {
+  return BY_STRONG_NAME.get(normalize(strongName.trim()))
+}
+
+/** Unilateral exercises are done one side at a time: their sets have two sides. */
+export function isUnilateral(exercise: { name: string; laterality?: Laterality } | undefined): boolean {
+  if (!exercise) return false
+  return (exercise.laterality ?? catalogEntry(exercise.name)?.laterality) === 'Unilateral'
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { currentDialog, subscribeDialog, type DialogRequest } from '../lib/dialog'
+import { DurationWheels } from './DurationWheels'
 
 /** Shows the dialog asked for with choose(), confirmDialog(), notify() or askText() from lib/dialog. */
 export function DialogHost() {
@@ -9,6 +10,7 @@ export function DialogHost() {
 
 function DialogView({ req }: { req: DialogRequest }) {
   const [text, setText] = useState(req.input?.initial ?? '')
+  const [seconds, setSeconds] = useState(req.duration?.initial ?? 0)
   const first = useRef<HTMLButtonElement>(null)
   const input = useRef<HTMLInputElement>(null)
 
@@ -21,7 +23,11 @@ function DialogView({ req }: { req: DialogRequest }) {
     }
   }, [])
 
-  const pick = (value: unknown) => req.resolve(req.input && value === true ? text : value === false && req.input ? null : value)
+  const pick = (value: unknown) => {
+    if (req.input) return req.resolve(value === true ? text : value === false ? null : value)
+    if (req.duration) return req.resolve(value === true ? seconds : value === false ? null : value)
+    req.resolve(value)
+  }
 
   return (
     <div className="dialog-backdrop" onClick={() => req.resolve(null)}>
@@ -44,6 +50,9 @@ function DialogView({ req }: { req: DialogRequest }) {
               if (e.key === 'Enter') pick(true)
             }}
           />
+        )}
+        {req.duration && (
+          <DurationWheels seconds={seconds} step={req.duration.step} max={req.duration.max} onChange={setSeconds} />
         )}
         <div className="dialog-actions">
           {req.options.map((o, i) => (

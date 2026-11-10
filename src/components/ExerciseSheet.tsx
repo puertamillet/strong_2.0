@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { db, DEFAULT_REST_SECONDS, newId, REST_OPTIONS, type Exercise } from '../db'
 import { fmtClock } from '../lib/format'
 import { SEED_EXERCISES } from '../seed'
+import { isUnilateral } from '../lib/catalog'
 import { confirmDialog, notify } from '../lib/dialog'
 import { CloseButton, Sheet } from './Sheet'
 
@@ -84,6 +85,16 @@ export function ExerciseSheet({ exercise, usage, onClose, onDeleted, level = 2 }
             {CATEGORIES.map((c) => (
               <option key={c}>{c}</option>
             ))}
+          </select>
+        </label>
+        <label>
+          Lateralidad
+          <select
+            value={isUnilateral(draft) ? 'Unilateral' : 'Bilateral'}
+            onChange={(e) => setDraft({ ...draft, laterality: e.target.value as 'Bilateral' | 'Unilateral' })}
+          >
+            <option value="Bilateral">Bilateral</option>
+            <option value="Unilateral">Unilateral (un lado cada vez)</option>
           </select>
         </label>
         <label>

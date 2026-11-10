@@ -7,7 +7,7 @@ import { CloseButton, Sheet } from '../components/Sheet'
 import { db, newId, type Template, type WorkoutExercise } from '../db'
 import { useExerciseContexts, useExerciseMap } from '../lib/hooks'
 import { useCloseSheet } from '../lib/sheets'
-import { fromTemplateSet, newWorkoutExercises, toTemplateSet } from '../lib/workouts'
+import { fromTemplateExercise, newWorkoutExercises, templateExercise } from '../lib/workouts'
 import { ExerciseDetail } from '../pages/ExerciseDetailPage'
 
 /** /templates/:id — create (id "new") or edit a template. */
@@ -28,7 +28,7 @@ function toDraft(t: Template): Draft {
   return {
     template: t,
     name: t.name,
-    exercises: t.exercises.map((e) => ({ exerciseId: e.exerciseId, restSeconds: e.restSeconds, sets: e.sets.map(fromTemplateSet) })),
+    exercises: t.exercises.map(fromTemplateExercise),
   }
 }
 
@@ -90,7 +90,8 @@ function TemplateEditor({ id }: { id: string }) {
       ...draft.template,
       name,
       updatedAt: Date.now(),
-      exercises: draft.exercises.map((e) => ({ exerciseId: e.exerciseId, restSeconds: e.restSeconds, sets: e.sets.map(toTemplateSet) })),
+      // In the editor, the exercise's note is the template's note (copied into each workout).
+      exercises: draft.exercises.map((e) => templateExercise(e, e.notes)),
     })
     close()
   }
