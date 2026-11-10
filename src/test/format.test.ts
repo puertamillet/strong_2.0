@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtClock, fmtDateTime, fmtNumber, fmtSet, parseNum, setLabel } from '../lib/format'
+import { fmtClock, fmtDateTime, fmtNumber, fmtRange, fmtSet, parseNum, parseRange, setLabel, setLabels } from '../lib/format'
 import { guessCategory } from '../seed'
 
 describe('format', () => {
@@ -31,6 +31,25 @@ describe('format', () => {
     expect(setLabel('warmup', 0)).toBe('C')
     expect(setLabel('normal', 2)).toBe('2')
     expect(setLabel('drop', 2)).toBe('D')
+    expect(setLabels([{ type: 'warmup' }, { type: 'top' }, { type: 'backoff' }, { type: 'backoff' }, { type: 'normal' }])).toEqual(
+      ['C', 'T', 'B', 'B', '1'],
+    )
+  })
+
+  it('shows both sides of a unilateral set when they differ', () => {
+    expect(fmtSet({ weight: 12.5, reps: 10, second: { weight: 12.5, reps: 9 } })).toBe('12,5 kg × 10 / 12,5 kg × 9')
+    expect(fmtSet({ weight: 12.5, reps: 10, second: { weight: 12.5, reps: 10 } })).toBe('12,5 kg × 10')
+  })
+
+  it('reads and writes rep ranges', () => {
+    expect(parseRange('6-8')).toEqual([6, 8])
+    expect(parseRange(' 6 – 8 ')).toEqual([6, 8])
+    expect(parseRange('8')).toEqual([8, 8])
+    expect(parseRange('12-10')).toEqual([10, 12])
+    expect(parseRange('')).toBeNull()
+    expect(parseRange('seis')).toBeUndefined()
+    expect(fmtRange([6, 8])).toBe('6–8')
+    expect(fmtRange([8, 8])).toBe('8')
   })
 })
 

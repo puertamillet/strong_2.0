@@ -8,6 +8,7 @@ import {
   getActiveWorkout,
   lastPerformance,
   mutateWorkout,
+  nextSet,
   saveWorkout,
   startWorkout,
   syncTemplate,
@@ -235,3 +236,127 @@ describe('templates after a workout', () => {
   })
 })
 
+
+describe('rests per set, sides, target reps and notes', () => {
+  const ext = { id: 'ext', name: 'Unilateral Triceps Extension (Cable)', createdAt: 0 }
+  const template = (): Template => ({
+    id: 'empuje',
+    name: 'Empuje',
+    updatedAt: 0,
+    exercises: [
+      {
+        exerciseId: 'bench',
+        restSeconds: 180,
+        stickyNote: '52 de altura',
+        notes: 'Hacerlo sentado',
+        sets: [
+          { type: 'warmup', weight: 20, reps: 6, rest: 60 },
+          { type: 'top', weight: 95, reps: 5, rest: 210, range: [4, 6] },
+          { type: 'backoff', weight: 85, reps: 7, rest: 180, range: [6, 8] },
+        ],
+      },
+      {
+        exerciseId: 'ext',
+        restSeconds: 90,
+        sets: [{ type: 'normal', weight: 16.25, reps: 10, rest: 90, sides: 2, sideRest: 0, range: [9, 12] }],
+      },
+    ],
+  })
+
+  beforeEach(async () => {
+    await db.exercises.add(ext)
+  })
+
+  async function startFrom(t: Template) {
+    await db.templates.put(t)
+    return startWorkout(t)
+  }
+
+  it('starts with the rests, sides, targets and notes of the template', async () => {
+    const w = (await db.workouts.get(await startFrom(template())))!
+    expect(w.exercises[0]).toMatchObject({ stickyNote: '52 de altura', notes: 'Hacerlo sentado' })
+    expect(w.exercises[0].sets[1]).toEqual({ type: 'top', weight: 95, reps: 5, rest: 210, range: [4, 6], done: false })
+    expect(w.exercises[1].sets[0]).toMatchObject({ sides: 2, sideRest: 0, rest: 90, range: [9, 12] })
+  })
+
+  it('counts a changed rest or side rest as a change to the template, not the values of each side', async () => {
+    const t = template()
+    const w = (await db.workouts.get(await startFrom(t)))!
+    expect(differsFromTemplate(w, t)).toBe(false)
+    const changes: [(x: typeof w) => void, boolean][] = [
+      [(x) => (x.exercises[0].sets[1].rest = 200), true],
+      [(x) => (x.exercises[1].sets[0].sideRest = 30), true],
+      [(x) => (x.exercises[0].sets[0].sides = 2), true],
+      [(x) => (x.exercises[1].sets[0].second = { weight: 15, reps: 9 }), false],
+      [(x) => (x.exercises[0].stickyNote = '50 de altura'), false],
+      [(x) => (x.exercises[0].sets[1].done = true), false],
+    ]
+    for (const [change, differs] of changes) {
+      const copy = structuredClone(w)
+      change(copy)
+      expect(differsFromTemplate(copy, t)).toBe(differs)
+    }
+  })
+
+  it('saves values, the other side and the sticky note, keeping rests and targets', async () => {
+    const id = await startFrom(template())
+    await mutateWorkout(id, (x) => {
+      x.exercises[0].stickyNote = '50 de altura'
+      x.exercises[0].notes = 'Me molestaba el hombro'
+      Object.assign(x.exercises[0].sets[1], { weight: 97.5, reps: 4, done: true })
+      Object.assign(x.exercises[1].sets[0], { weight: 17.5, reps: 10, second: { weight: 17.5, reps: 8 }, done: true })
+    })
+    const w = (await db.workouts.get(id))!
+    const next = templateWithValues(template(), w)
+    expect(next.exercises[0].stickyNote).toBe('50 de altura')
+    expect(next.exercises[0].notes).toBe('Hacerlo sentado')
+    expect(next.exercises[0].sets[1]).toEqual({ type: 'top', weight: 97.5, reps: 4, rest: 210, range: [4, 6] })
+    expect(next.exercises[1].sets[0]).toEqual({
+      type: 'normal',
+      weight: 17.5,
+      reps: 10,
+      second: { weight: 17.5, reps: 8 },
+      rest: 90,
+      sides: 2,
+      sideRest: 0,
+      range: [9, 12],
+    })
+
+    // Updating the structure too keeps the template's own notes, not today's.
+    await syncTemplate(w, 'empuje', true)
+    const t = (await db.templates.get('empuje'))!
+    expect(t.exercises[0]).toMatchObject({ notes: 'Hacerlo sentado', stickyNote: '50 de altura' })
+    expect(t.exercises[0].sets[2]).toMatchObject({ type: 'backoff', rest: 180, range: [6, 8] })
+  })
+
+  it('adds sets like the last one: a back off after a top set, two sides for unilateral exercises', async () => {
+    const w = (await db.workouts.get(await startFrom(template())))!
+    expect(nextSet(w.exercises[0])).toEqual({ type: 'backoff', weight: null, reps: null, done: false, rest: 180, range: [6, 8] })
+    expect(nextSet({ exerciseId: 'bench', restSeconds: 60, sets: [{ type: 'warmup', weight: 20, reps: 5, done: true }] }).type).toBe(
+      'normal',
+    )
+    expect(nextSet(w.exercises[1])).toMatchObject({ sides: 2, sideRest: 0, rest: 90 })
+
+    const empty = await startWorkout()
+    await finishWorkout(empty)
+    const id = await startWorkout()
+    await addExercisesToWorkout(id, ['ext', 'bench'])
+    const added = (await db.workouts.get(id))!
+    expect(added.exercises[0].sets[0].sides).toBe(2)
+    expect(added.exercises[1].sets[0].sides).toBeUndefined()
+  })
+
+  it('keeps a unilateral set only when both sides are done', async () => {
+    const id = await startFrom(template())
+    await mutateWorkout(id, (x) => {
+      x.exercises[0].sets.forEach((s) => (s.done = true))
+      x.exercises[1].sets.push({ ...x.exercises[1].sets[0] })
+      Object.assign(x.exercises[1].sets[0], { firstDone: true })
+      Object.assign(x.exercises[1].sets[1], { firstDone: true, done: true })
+    })
+    await finishWorkout(id)
+    const w = (await db.workouts.get(id))!
+    expect(w.exercises[1].sets).toHaveLength(1)
+    expect(w.exercises[1].sets[0].firstDone).toBeUndefined()
+  })
+})

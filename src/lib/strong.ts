@@ -3,7 +3,6 @@ import {
   newId,
   type Exercise,
   type SetType,
-  type Template,
   type Workout,
   type WorkoutExercise,
   type WorkoutSet,
@@ -35,9 +34,6 @@ export interface ParsedStrong {
   /** Exercises referenced by the file that do not exist yet. */
   newExercises: Exercise[]
 }
-
-/** Strong's default names for untitled workouts, plus ours. Not worth turning into templates. */
-const GENERIC_NAMES = /^((morning|afternoon|evening|night) workout|entreno de (mañana|tarde|noche))$/i
 
 /** "2024-04-15 20:35:10" → local timestamp. */
 export function parseStrongDate(s: string): number {
@@ -246,36 +242,6 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
 
   const used = new Set(result.flatMap((w) => w.exerciseIds))
   return { workouts: result, newExercises: newExercises.filter((e) => used.has(e.id)) }
-}
-
-/**
- * One template per routine done recently: for each workout name used in the
- * `days` before the latest workout, take the structure of its last session.
- */
-export function templatesFromHistory(workouts: Workout[], existingNames: string[], days = 90): Template[] {
-  if (!workouts.length) return []
-  const latest = Math.max(...workouts.map((w) => w.startedAt))
-  const cutoff = latest - days * 24 * 3600 * 1000
-  const taken = new Set(existingNames.map(normalize))
-  const lastByName = new Map<string, Workout>()
-  for (const w of workouts) {
-    const key = normalize(w.name.trim())
-    if (w.startedAt < cutoff || GENERIC_NAMES.test(w.name.trim()) || taken.has(key)) continue
-    const prev = lastByName.get(key)
-    if (!prev || w.startedAt > prev.startedAt) lastByName.set(key, w)
-  }
-  return [...lastByName.values()]
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-    .map((w) => ({
-      id: newId(),
-      name: w.name.trim(),
-      updatedAt: Date.now(),
-      exercises: w.exercises.map((e) => ({
-        exerciseId: e.exerciseId,
-        restSeconds: e.restSeconds,
-        sets: e.sets.map((s) => ({ type: s.type, weight: null, reps: null })),
-      })),
-    }))
 }
 
 function pad(n: number): string {

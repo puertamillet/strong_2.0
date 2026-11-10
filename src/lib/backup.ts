@@ -1,42 +1,30 @@
 import { db, type Exercise, type Template, type Workout } from '../db'
-import { parseStrongCsv, templatesFromHistory, workoutsToStrongCsv } from './strong'
+import { parseStrongCsv, workoutsToStrongCsv } from './strong'
 
 export interface ImportSummary {
   added: number
   skipped: number
   newExercises: number
-  templates: string[]
 }
 
-/** Import a Strong CSV export. Workouts already imported are skipped, so it can be re-run safely. */
-export async function importStrongCsv(text: string, opts: { createTemplates: boolean }): Promise<ImportSummary> {
+/**
+ * Import a Strong CSV export. Workouts already imported are skipped, so it can be re-run safely.
+ * Templates are not made from the history: they come from a templates CSV (lib/templatesCsv).
+ */
+export async function importStrongCsv(text: string): Promise<ImportSummary> {
   const existing = await db.exercises.toArray()
   const parsed = parseStrongCsv(text, existing)
-  return db.transaction('rw', db.exercises, db.workouts, db.templates, async () => {
+  return db.transaction('rw', db.exercises, db.workouts, async () => {
     const present = await db.workouts.bulkGet(parsed.workouts.map((w) => w.id))
     const fresh = parsed.workouts.filter((_, i) => !present[i])
     const usedIds = new Set(fresh.flatMap((w) => w.exerciseIds))
     const newExercises = parsed.newExercises.filter((e) => usedIds.has(e.id))
     await db.exercises.bulkAdd(newExercises)
     await db.workouts.bulkAdd(fresh)
-
-    let templates: Template[] = []
-    if (opts.createTemplates) {
-      const names = (await db.templates.toArray()).map((t) => t.name)
-      templates = templatesFromHistory(parsed.workouts, names)
-      // Templates may reference exercises of workouts skipped above; make sure they exist.
-      const known = new Set((await db.exercises.toArray()).map((e) => e.id))
-      const missing = parsed.newExercises.filter(
-        (e) => !known.has(e.id) && templates.some((t) => t.exercises.some((x) => x.exerciseId === e.id)),
-      )
-      await db.exercises.bulkAdd(missing)
-      await db.templates.bulkAdd(templates)
-    }
     return {
       added: fresh.length,
       skipped: parsed.workouts.length - fresh.length,
       newExercises: newExercises.length,
-      templates: templates.map((t) => t.name),
     }
   })
 }

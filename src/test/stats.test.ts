@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db, type Workout, type WorkoutSet } from '../db'
 import { fmtTick, niceTicks } from '../lib/chartScale'
-import { exerciseSessions, personalRecords, weeklyCounts, weekStart, workoutPRCounts } from '../lib/stats'
+import { exerciseSessions, personalRecords, volume, weeklyCounts, weekStart, workoutPRCounts } from '../lib/stats'
 import { exerciseContext, isPR } from '../lib/workouts'
 
 const set = (weight: number, reps: number, type: WorkoutSet['type'] = 'normal'): WorkoutSet => ({ type, weight, reps, done: true })
@@ -35,6 +35,15 @@ describe('exercise stats', () => {
     expect(s[0].volume).toBe(800)
     expect(s[0].e1rm).toBeCloseTo(80 * (1 + 5 / 30))
     expect(s[1].maxReps).toBe(12)
+  })
+
+  it('counts both sides of unilateral sets in the volume', () => {
+    const w = workout('u', 14, [
+      { ...set(10, 10), sides: 2 },
+      { ...set(10, 10), sides: 2, second: { weight: 10, reps: 8 } },
+      { ...set(5, 10, 'warmup'), sides: 2 },
+    ])
+    expect(volume(w)).toBe(200 + 180)
   })
 
   it('finds personal records and rep maxes', () => {
