@@ -1,0 +1,91 @@
+strong,nombre,material,lateralidad,principales,secundarios,revisar
+Chest Fly (Cable),Aperturas,Cables,Bilateral,Pectoral,Deltoides anterior,
+Chest Fly,Aperturas,Máquina de placas,Bilateral,Pectoral,Deltoides anterior,En Strong no tenía material; por los pesos lo he tomado como contractora (pec deck).
+Incline Chest Fly (Cable),Aperturas inclinadas,Cables,Bilateral,Pectoral,Deltoides anterior,
+Cable Crossover,Cruce de poleas,Cables,Bilateral,Pectoral,Deltoides anterior,
+Push Up,Flexiones,Peso corporal,Bilateral,Pectoral,Deltoides anterior + Tríceps,
+Bench Press (Dumbbell),Press de banca,Mancuernas,Bilateral,Pectoral,Deltoides anterior + Tríceps,
+Bench Press (Barbell),Press de banca,Barra,Bilateral,Pectoral,Deltoides anterior + Tríceps,
+Chest press (Plate Machine),Press de pecho,Máquina de discos,Bilateral,Pectoral,Deltoides anterior + Tríceps,
+Chest Press (Machine),Press de pecho,Máquina de placas,Bilateral,Pectoral,Deltoides anterior + Tríceps,
+Iso-Lateral Chest Press (Machine),Press de pecho iso-lateral,Máquina de discos,Bilateral,Pectoral,Deltoides anterior + Tríceps,¿Es de discos?
+Incline Bench Press (Dumbbell),Press inclinado,Mancuernas,Bilateral,Pectoral,Deltoides anterior + Tríceps,
+Incline Bench Press (Barbell),Press inclinado,Barra,Bilateral,Pectoral,Deltoides anterior + Tríceps,
+Incline Chest Press (Machine),Press inclinado,Máquina de placas,Bilateral,Pectoral,Deltoides anterior + Tríceps,¿Placas o discos?
+Incline Bench Press (Smith Machine),Press inclinado en multipower,Máquina de discos,Bilateral,Pectoral,Deltoides anterior + Tríceps,El multipower lo cuento como máquina de discos y lo dejo en el nombre para distinguirlo de la máquina de press inclinado.
+Pull Up,Dominadas,Peso corporal,Bilateral,Dorsal ancho,Bíceps + Romboides,Hay series con mucho peso: ¿eran con lastre o en máquina asistida?
+Chin Up,Dominadas supinas,Peso corporal,Bilateral,Dorsal ancho + Bíceps,Romboides,
+Lat Pulldown (Cable),Jalón al pecho,Cables,Bilateral,Dorsal ancho,Bíceps + Romboides,
+Lat Pulldown (Single Arm),Jalón al pecho,Cables,Unilateral,Dorsal ancho,Bíceps + Romboides,Por el número de series parece que apuntabas los dos brazos en la misma serie.
+Lat Pulldown (Plate Machine),Jalón al pecho,Máquina de discos,Bilateral,Dorsal ancho,Bíceps + Romboides,
+Unilateral Lat Pulldown (Machine),Jalón al pecho,Máquina de discos,Unilateral,Dorsal ancho,Bíceps + Romboides,¿Placas o discos?
+Lat Pulldown (Machine),Jalón al pecho,Máquina de placas,Bilateral,Dorsal ancho,Bíceps + Romboides,¿Placas o discos?
+Deadlift (Barbell),Peso muerto,Barra,Bilateral,Lumbares + Glúteos + Isquiotibiales,Cuádriceps + Trapecio + Antebrazo,
+Unilateral Pullover (Cable),Pullover,Cables,Unilateral,Dorsal ancho,Tríceps,"Si es el mismo pullover sentado pero a un brazo, lo llamo igual que el otro."
+Seated Pullover (Cable),Pullover sentado,Cables,Bilateral,Dorsal ancho,Tríceps,
+Seated Low Row (Machine),Remo bajo,Máquina de placas,Bilateral,Dorsal ancho + Romboides,Bíceps + Deltoides posterior,¿Placas o discos?
+T Bar Row,Remo en T,Máquina de discos,Bilateral,Dorsal ancho + Romboides,Bíceps + Deltoides posterior + Lumbares,¿Máquina de remo en T o barra en landmine?
+Bent Over One Arm Row (Dumbbell),Remo inclinado,Mancuernas,Unilateral,Dorsal ancho + Romboides,Bíceps + Deltoides posterior,
+Bent Over Row (Barbell),Remo inclinado,Barra,Bilateral,Dorsal ancho + Romboides,Bíceps + Deltoides posterior + Lumbares,
+Seated Row (Cable),Remo sentado,Cables,Bilateral,Dorsal ancho + Romboides,Bíceps + Deltoides posterior + Trapecio,
+Unilateral Seated Row (Cable),Remo sentado,Cables,Unilateral,Dorsal ancho + Romboides,Bíceps + Deltoides posterior + Trapecio,
+Seated Row (Machine),Remo sentado,Máquina de placas,Bilateral,Dorsal ancho + Romboides,Bíceps + Deltoides posterior + Trapecio,¿Placas o discos?
+Seated Wide-Grip Row (Cable),Remo sentado con agarre abierto,Cables,Bilateral,Romboides + Trapecio + Deltoides posterior,Dorsal ancho + Bíceps,
+Seated wide-Grip Row (Machine),Remo sentado con agarre abierto,Máquina de placas,Bilateral,Romboides + Trapecio + Deltoides posterior,Dorsal ancho + Bíceps,
+Reverse Fly (Machine),Aperturas inversas,Máquina de placas,Bilateral,Deltoides posterior,Romboides + Trapecio,
+Lateral Raise (Dumbbell),Elevaciones laterales,Mancuernas,Bilateral,Deltoides lateral,Trapecio,
+Unilateral Lateral Raise (Dumbbell),Elevaciones laterales,Mancuernas,Unilateral,Deltoides lateral,Trapecio,
+Lateral Raise (Cable),Elevaciones laterales,Cables,Unilateral,Deltoides lateral,Trapecio,"No lo llamaste Unilateral, pero por el número de series (4 o 6) parece que ibas brazo a brazo."
+Lateral Raise (Machine),Elevaciones laterales,Máquina de placas,Bilateral,Deltoides lateral,Trapecio,
+Unilateral LateraL Raise (Machine),Elevaciones laterales,Máquina de placas,Unilateral,Deltoides lateral,Trapecio,
+Seated Lateral Raise (Dumbbell),Elevaciones laterales sentado,Mancuernas,Bilateral,Deltoides lateral,Trapecio,
+Face Pull (Cable),Face pull,Cables,Bilateral,Deltoides posterior,Trapecio + Romboides,
+Arnold Press (Dumbbell),Press Arnold,Mancuernas,Bilateral,Deltoides anterior + Deltoides lateral,Tríceps,
+Shoulder Press (Dumbbell),Press de hombro,Mancuernas,Bilateral,Deltoides anterior,Deltoides lateral + Tríceps,
+Shoulder Press (Machine),Press de hombro,Máquina de placas,Bilateral,Deltoides anterior,Deltoides lateral + Tríceps,
+Overhead Press (Barbell),Press militar,Barra,Bilateral,Deltoides anterior,Deltoides lateral + Tríceps,
+Seated Overhead Press (Barbell),Press militar sentado,Barra,Bilateral,Deltoides anterior,Deltoides lateral + Tríceps,
+Seated Overhead Press (Smith Machine),Press militar sentado en multipower,Máquina de discos,Bilateral,Deltoides anterior,Deltoides lateral + Tríceps,
+Spider Curl (Barbell),Curl araña,Barra,Bilateral,Bíceps,,
+Curl Bayesian (Cable),Curl bayesiano,Cables,Unilateral,Bíceps,,Por el número de series (4 o 6) parece que ibas brazo a brazo.
+Bicep Curl (Dumbbell),Curl de bíceps,Mancuernas,Bilateral,Bíceps,Antebrazo,
+Bicep Curl (Barbell),Curl de bíceps,Barra,Bilateral,Bíceps,Antebrazo,
+Bicep Curl (Cable),Curl de bíceps,Cables,Bilateral,Bíceps,Antebrazo,
+Bicep Curl (Plate Machine),Curl de bíceps,Máquina de discos,Bilateral,Bíceps,,
+Bicep Curl (Machine),Curl de bíceps,Máquina de placas,Bilateral,Bíceps,,
+Incline Curl (Dumbbell),Curl inclinado,Mancuernas,Bilateral,Bíceps,,
+Hammer Curl (Dumbbell),Curl martillo,Mancuernas,Bilateral,Bíceps + Antebrazo,,
+Preacher Curl (Cable),Curl predicador,Cables,Bilateral,Bíceps,,
+Preacher Curl (Machine),Curl predicador,Máquina de placas,Bilateral,Bíceps,,
+Triceps Extension,Extensión de tríceps,Mancuernas,Bilateral,Tríceps,,En Strong no tenía material; ¿era con mancuerna?
+Triceps Extension (Barbell),Extensión de tríceps,Barra,Bilateral,Tríceps,,
+Triceps Extension (Cable),Extensión de tríceps,Cables,Bilateral,Tríceps,,
+Unilateral Triceps Extension (Cable),Extensión de tríceps,Cables,Unilateral,Tríceps,,
+Triceps Extension Overhead (Cable),Extensión de tríceps sobre la cabeza,Cables,Bilateral,Tríceps,,
+Triceps Dip,Fondos,Peso corporal,Bilateral,Tríceps,Pectoral + Deltoides anterior,
+Skullcrusher (Barbell),Press francés,Barra,Bilateral,Tríceps,,
+Hip Abductor (Machine),Abducción de cadera,Máquina de placas,Bilateral,Abductores,Glúteos,
+Glute Abductions (Machine),Abducción de cadera,Máquina de placas,Bilateral,Abductores,Glúteos,"Es el mismo ejercicio que Hip Abductor (Machine), así que los junto en uno."
+Hip Adductor (Machine),Aducción de cadera,Máquina de placas,Bilateral,Aductores,,
+Standing Leg Curl (Machine),Curl femoral de pie,Máquina de placas,Unilateral,Isquiotibiales,,"De pie se hace a una pierna, así que lo pongo unilateral."
+Seated Leg Curl (Machine),Curl femoral sentado,Máquina de placas,Bilateral,Isquiotibiales,,
+Lying Leg Curl (Machine),Curl femoral tumbado,Máquina de placas,Bilateral,Isquiotibiales,Gemelos,
+Leg Extension (Machine),Extensión de cuádriceps,Máquina de placas,Bilateral,Cuádriceps,,
+Unilateral Leg Extension (Machine),Extensión de cuádriceps,Máquina de placas,Unilateral,Cuádriceps,,
+Standing Calf Raise (Machine),Gemelos de pie,Máquina de placas,Bilateral,Gemelos,,¿Placas o discos?
+Standing Calf Raise (Smith Machine),Gemelos de pie en multipower,Máquina de discos,Bilateral,Gemelos,,
+Calf Press on Leg Press,Gemelos en prensa,Máquina de discos,Bilateral,Gemelos,,
+Calf Press on Seated Leg Press,Gemelos en prensa sentado,Máquina de placas,Bilateral,Gemelos,,¿Placas o discos?
+Seated Calf Raise (Machine),Gemelos sentado,Máquina de discos,Bilateral,Gemelos,,
+Hip Thrust (Barbell),Hip thrust,Barra,Bilateral,Glúteos,Isquiotibiales,
+Romanian Deadlift (Barbell),Peso muerto rumano,Barra,Bilateral,Isquiotibiales + Glúteos,Lumbares,
+Leg Press,Prensa,Máquina de discos,Bilateral,Cuádriceps + Glúteos,Aductores,
+Unilateral Leg Press,Prensa,Máquina de discos,Unilateral,Cuádriceps + Glúteos,Aductores,
+Squat (Barbell),Sentadilla,Barra,Bilateral,Cuádriceps + Glúteos,Aductores + Lumbares,
+Squat (Machine),Sentadilla,Máquina de discos,Bilateral,Cuádriceps + Glúteos,Aductores,"¿Qué máquina era (hack, péndulo...)? ¿Discos o placas?"
+Bulgarian Split Squat (Dumbbell),Sentadilla búlgara,Mancuernas,Unilateral,Cuádriceps + Glúteos,Aductores,
+Front Squat (Barbell),Sentadilla frontal,Barra,Bilateral,Cuádriceps,Glúteos,
+Cable Crunch,Crunch,Cables,Bilateral,Abdominales,,
+Crunch (Machine),Crunch,Máquina de placas,Bilateral,Abdominales,,
+Hanging Leg Raise,Elevación de piernas colgado,Peso corporal,Bilateral,Abdominales,Oblicuos,
+Plank,Plancha,Peso corporal,Bilateral,Abdominales,Oblicuos,
