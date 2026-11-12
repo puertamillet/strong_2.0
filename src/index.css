@@ -62,11 +62,11 @@
     --body-line: #6e6e75;
     --body-hair: #2c2c2e;
     --body-secondary: #1d5a99;
-    /* Brighter with more sets. */
-    --heat-1: #3987e5;
-    --heat-2: #6da7ec;
-    --heat-3: #9ec5f4;
-    --heat-4: #cde2fb;
+    /* Also darker with more sets, as in light mode; the darkest still clears the body (2.5:1). */
+    --heat-1: #cde2fb;
+    --heat-2: #9ec5f4;
+    --heat-3: #6da7ec;
+    --heat-4: #3987e5;
   }
 }
 
