@@ -1,0 +1,84 @@
+name: iOS
+
+# The iPhone app (Capacitor, ios/), built on GitHub's Macs, which are free for public repositories.
+# Every push builds it for the simulator, runs it there and keeps a screenshot, and builds it for
+# the iPhone without signing: SideStore signs it with your Apple ID when it installs it. On main,
+# the .ipa is published in the «ios» release, from where the iPhone downloads it.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      VERSION: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync ios
+      - run: xcodebuild -version
+
+      - name: Build for the simulator
+        run: >
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build -quiet
+
+      - name: Run it in the simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for k, v in sorted(runtimes.items(), reverse=True) if "iOS" in k for d in v if d["name"].startswith("iPhone")))')
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build/sim/Build/Products/Debug-iphonesimulator/App.app
+          xcrun simctl launch "$UDID" io.github.puertamillet.strong2
+          sleep 25
+          mkdir -p build/shots
+          xcrun simctl io "$UDID" screenshot build/shots/inicio.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulador
+          path: build/shots
+
+      - name: Build for the iPhone (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/device \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= build -quiet
+          mkdir -p build/ipa/Payload
+          cp -R build/device/Build/Products/Release-iphoneos/App.app build/ipa/Payload/
+          (cd build/ipa && zip -qry ../Strong2.ipa Payload)
+          ls -l build/Strong2.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Strong2-ipa
+          path: build/Strong2.ipa
+
+      - name: Publish it for the iPhone
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ios --yes --cleanup-tag || true
+          gh release create ios build/Strong2.ipa --target "$GITHUB_SHA" --prerelease \
+            --title "App para iPhone $VERSION" \
+            --notes "Ábrelo desde el iPhone, descarga Strong2.ipa e instálalo con SideStore (Mis apps → +). Ver «App para iPhone» en el README."
