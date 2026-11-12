@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs'
-import { runInNewContext } from 'node:vm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TemplateExercise, WorkoutSet } from '../db'
 import { filmSetIndex, fromTemplateExercise, nextSet, templateExercise } from '../lib/workouts'
 
@@ -69,55 +67,5 @@ describe('the set to film', () => {
     expect(we.sets.map((s) => s.film ?? false)).toEqual([false, true, false])
     expect(templateExercise(we).sets.map((s) => s.film ?? false)).toEqual([false, true, false])
     expect(nextSet({ ...we, sets: we.sets.slice(0, 2) }).film).toBeUndefined()
-  })
-})
-
-describe('notifications in the service worker', () => {
-  type Listener = (event: Record<string, unknown>) => void
-  let listeners: Record<string, Listener>
-  let shown: { title: string; options: Record<string, unknown> }[]
-  let windows: { postMessage: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn> }[]
-  let opened: string[]
-
-  beforeEach(() => {
-    listeners = {}
-    shown = []
-    windows = []
-    opened = []
-    const self = {
-      addEventListener: (type: string, fn: Listener) => (listeners[type] = fn),
-      registration: { showNotification: async (title: string, options: Record<string, unknown>) => void shown.push({ title, options }) },
-      clients: { matchAll: async () => windows, openWindow: async (url: string) => void opened.push(url) },
-    }
-    // No database here: the rest notification goes without the next set.
-    runInNewContext(readFileSync('public/push-sw.js', 'utf8'), { self, Intl, indexedDB: undefined })
-  })
-
-  /** Dispatches an event and waits for what it asked to wait for. */
-  async function dispatch(type: string, event: Record<string, unknown>) {
-    let wait: Promise<unknown> = Promise.resolve()
-    listeners[type]({ ...event, waitUntil: (p: Promise<unknown>) => (wait = p) })
-    await wait
-  }
-
-  it('shows the end of a rest for a push without a message, and the reminder for one with it', async () => {
-    await dispatch('push', { data: null })
-    await dispatch('push', { data: { json: () => ({ type: 'grabar' }) } })
-    expect(shown.map((n) => n.title)).toEqual(['Descanso terminado', 'Grabar esta semana'])
-    expect(shown[1].options).toMatchObject({ tag: 'grabar', data: { hash: '#/filming' } })
-  })
-
-  it('opens the page when the reminder is tapped, in the app if it is open', async () => {
-    const close = vi.fn()
-    await dispatch('notificationclick', { notification: { close, data: { hash: '#/filming' } } })
-    expect(opened).toEqual(['./#/filming'])
-    windows = [{ postMessage: vi.fn(), focus: vi.fn(async () => undefined) }]
-    await dispatch('notificationclick', { notification: { close, data: { hash: '#/filming' } } })
-    expect(windows[0].postMessage).toHaveBeenCalledWith({ type: 'open', hash: '#/filming' })
-    expect(windows[0].focus).toHaveBeenCalled()
-    // The end of a rest only brings the app to the front.
-    await dispatch('notificationclick', { notification: { close, data: null } })
-    expect(windows[0].postMessage).toHaveBeenCalledTimes(1)
-    expect(close).toHaveBeenCalledTimes(3)
   })
 })

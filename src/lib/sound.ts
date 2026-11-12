@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from 'react'
 import { haptic } from './haptics'
 
 /**
@@ -57,12 +56,29 @@ export function playPing(
 let audio: AudioContext | null = null
 
 /**
+ * The ping plays over whatever the iPhone is playing (a podcast, music) and never pauses it: that
+ * is iOS's "ambient" audio, which Safari uses for Web Audio and which is asked for here anyway where
+ * the Audio Session API exists (Safari 17+). The price is that with the iPhone in silent mode the
+ * ping doesn't sound, and then the notification's vibration is the warning. Sounding in silent
+ * mode takes "playback" audio, which pauses the podcast, and iOS doesn't give it back afterwards.
+ */
+function mixWithOtherAudio(): void {
+  try {
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession
+    if (session && session.type !== 'ambient') session.type = 'ambient'
+  } catch {
+    // No Audio Session API: Web Audio is ambient anyway.
+  }
+}
+
+/**
  * Gets the shared audio context running. iOS only lets a page play sound from a context started
  * during a tap, so this runs when a rest starts (the tap on ✓) and the ping uses the same context
  * when the rest is over; after the ping it is closed (see signalRestOver).
  */
 export function primeAudio(): AudioContext | null {
   try {
+    mixWithOtherAudio()
     if (!audio) {
       const Ctx =
         window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
@@ -77,74 +93,22 @@ export function primeAudio(): AudioContext | null {
   }
 }
 
-/**
- * Sound with the iPhone in silent mode. Web Audio follows the silent switch, unless the page asks
- * for "playback" audio (Audio Session API, Safari 17+), like a music app. Playback audio pauses
- * other apps' music or podcast, so it is a setting (off by default) and only asked for while the
- * ping sounds; then the page lets go of the audio, so what was paused can carry on.
- */
-type AudioSessionType = 'auto' | 'playback' | 'transient' | 'transient-solo' | 'ambient' | 'play-and-record'
-
-function audioSession(): { type: AudioSessionType } | undefined {
-  return (navigator as Navigator & { audioSession?: { type: AudioSessionType } }).audioSession
-}
-
-export const silentModeSoundSupported = typeof navigator !== 'undefined' && 'audioSession' in navigator
-
-const SILENT_KEY = 'strong2.soundInSilentMode'
-const listeners = new Set<() => void>()
-let soundInSilentMode = readSetting()
-
-function readSetting(): boolean {
-  try {
-    return localStorage.getItem(SILENT_KEY) === 'on'
-  } catch {
-    return false
-  }
-}
-
-export function setSoundInSilentMode(on: boolean): void {
-  soundInSilentMode = on
-  try {
-    if (on) localStorage.setItem(SILENT_KEY, 'on')
-    else localStorage.removeItem(SILENT_KEY)
-  } catch {
-    // Storage unavailable; the setting lasts until the app closes.
-  }
-  listeners.forEach((l) => l())
-}
-
-export function useSoundInSilentMode(): boolean {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l)
-      return () => listeners.delete(l)
-    },
-    () => soundInSilentMode,
-  )
-}
-
 let release: ReturnType<typeof setTimeout> | undefined
 
 /**
  * The ping, plus a vibration where the browser can, when the rest is over. On iPhone a web app can't
  * vibrate on its own (see haptics): the notification, which also comes with the app open, does. When
- * the ping has sounded the audio is let go: an open audio context keeps the page's audio session
- * active, and while it is, iOS doesn't give back the music or podcast that a playback ping paused.
- * The next rest opens a new one (see primeAudio).
+ * the ping has sounded the audio context is closed, so the page holds no audio while you rest; the
+ * next rest opens a new one (see primeAudio).
  */
 export function signalRestOver(): void {
   haptic([200, 100, 200])
   try {
     const ctx = primeAudio()
     if (!ctx) return
-    const session = soundInSilentMode ? audioSession() : undefined
-    if (session) session.type = 'playback'
-    // A little later with a playback session, so iOS has switched to it when the ping starts.
-    const seconds = playPing(ctx, {}, ctx.destination, session ? 0.12 : 0.03)
+    const seconds = playPing(ctx)
     clearTimeout(release)
     release = setTimeout(() => {
-      if (session) session.type = 'auto'
       if (audio === ctx) audio = null
       void ctx.close().catch(() => {})
     }, (seconds + 0.3) * 1000)

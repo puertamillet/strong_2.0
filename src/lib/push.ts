@@ -34,8 +34,6 @@ export interface ReminderTime {
 
 export interface Reminder extends ReminderTime {
   on: boolean
-  /** When it rings next, as the server said (ms since 1970). */
-  next?: number
 }
 
 /** Monday at 15:00. */
@@ -73,7 +71,7 @@ function readReminder(): Reminder {
   try {
     const saved = JSON.parse(readItem(REMINDER_KEY) ?? 'null') as Partial<Reminder> | null
     if (!saved || typeof saved.day !== 'number' || typeof saved.minutes !== 'number') return DEFAULT_REMINDER
-    return { on: saved.on === true, day: saved.day, minutes: saved.minutes, ...(typeof saved.next === 'number' && { next: saved.next }) }
+    return { on: saved.on === true, day: saved.day, minutes: saved.minutes }
   } catch {
     return DEFAULT_REMINDER
   }
@@ -143,6 +141,13 @@ export function useReminder(): Reminder {
   return useStore(() => reminder)
 }
 
+/** When the reminder rings next after `now`, in this phone's time (the server uses its time zone). */
+export function nextReminderAt({ day, minutes }: ReminderTime, now = new Date()): Date {
+  const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ((day - now.getDay() + 7) % 7), Math.floor(minutes / 60), minutes % 60)
+  if (at <= now) at.setDate(at.getDate() + 7)
+  return at
+}
+
 function fromBase64url(text: string): Uint8Array<ArrayBuffer> {
   const binary = atob(text.replace(/-/g, '+').replace(/_/g, '/'))
   return Uint8Array.from(binary, (c) => c.charCodeAt(0))
@@ -209,14 +214,13 @@ export async function disablePush(): Promise<void> {
 }
 
 /** Tells the server the reminder of this subscription (null: none). Throws if the server fails. */
-async function sendReminder(subscription: { endpoint: string; keys?: Record<string, string> }, time: ReminderTime | null): Promise<number | null> {
+async function sendReminder(subscription: { endpoint: string; keys?: Record<string, string> }, time: ReminderTime | null): Promise<void> {
   const weekly = time && { day: time.day, minutes: time.minutes, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
   const res = await fetch(`${SERVER}/weekly`, {
     method: 'POST',
     body: JSON.stringify({ endpoint: subscription.endpoint, keys: subscription.keys, weekly }),
   })
   if (!res.ok) throw new Error(`El servidor de avisos respondió ${res.status}`)
-  return ((await res.json()) as { next: number | null }).next
 }
 
 function keysOf(subscription: PushSubscription): { endpoint: string; keys?: Record<string, string> } {
@@ -227,9 +231,8 @@ function keysOf(subscription: PushSubscription): { endpoint: string; keys?: Reco
 export async function enableReminder(time: ReminderTime): Promise<PushStatus> {
   const subscription = await subscribe()
   if (typeof subscription === 'string') return subscription
-  let next: number | null
   try {
-    next = await sendReminder(keysOf(subscription), time)
+    await sendReminder(keysOf(subscription), time)
   } catch (e) {
     // Nothing else uses the subscription just made.
     if (!endpoint) await subscription.unsubscribe().catch(() => {})
@@ -238,7 +241,7 @@ export async function enableReminder(time: ReminderTime): Promise<PushStatus> {
   // Only the reminder: rest alerts stay off, as they were.
   if (!endpoint) setRestOff(true)
   setEndpoint(subscription.endpoint)
-  setReminder({ on: true, day: time.day, minutes: time.minutes, ...(next !== null && { next }) })
+  setReminder({ on: true, day: time.day, minutes: time.minutes })
   return 'on'
 }
 
@@ -290,24 +293,43 @@ export async function checkPushSubscription(): Promise<void> {
       setEndpoint(subscription.endpoint)
       if (reminder.on) await sendReminder({ endpoint: old }, null).catch(() => {})
     }
-    if (reminder.on && SERVER) {
-      const next = await sendReminder(keysOf(subscription), reminder)
-      if (next !== null) setReminder({ ...reminder, next })
-    }
+    if (reminder.on && SERVER) await sendReminder(keysOf(subscription), reminder)
   } catch {
     // Keep what we have.
   }
 }
 
+/** How long a notification that arrives with the app on screen stays, so that it is seen and felt. */
+export const SEEN_AFTER = 4000
+
+/** Takes this app's notifications off the lock screen and the Notification Center. */
+async function clearNotifications(): Promise<void> {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration()
+    for (const notification of (await registration?.getNotifications()) ?? []) notification.close()
+  } catch {
+    // Not available here.
+  }
+}
+
 /**
- * A tap on the weekly reminder opens its page: the service worker opens the app there, or, if
- * the app was already open, tells it where to go.
+ * Notifications don't pile up: they go away once you are in the app, when it opens or comes back
+ * to the front, and a few seconds after one arrives while it is on screen (the service worker says
+ * so, see public/push-sw.js). And a tap on the weekly reminder opens its page: the service worker
+ * opens the app there or, if the app was already open, tells it where to go.
  */
-export function followNotificationClicks(): void {
+export function followNotifications(): void {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  const onScreen = () => document.visibilityState === 'visible'
+  const clear = () => {
+    if (onScreen()) void clearNotifications()
+  }
+  clear()
+  document.addEventListener('visibilitychange', clear)
   navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
     const data = e.data as { type?: unknown; hash?: unknown } | null
     if (data?.type === 'open' && typeof data.hash === 'string' && data.hash.startsWith('#/')) location.hash = data.hash
+    if (data?.type === 'notified' && onScreen()) setTimeout(clear, SEEN_AFTER)
   })
 }
 
