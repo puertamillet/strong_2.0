@@ -2,19 +2,21 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { choose } from '../lib/dialog'
+import { ReorderList } from '../components/ReorderList'
 import { CloseButton } from '../components/Sheet'
 import { db, type Template } from '../db'
 import { exerciseLabel } from '../lib/exercises'
 import { fmtShortDate, normalize } from '../lib/format'
 import { restTimer } from '../lib/restTimer'
 import { useOpenSheet } from '../lib/sheets'
+import { saveTemplateOrder, sortTemplates } from '../lib/templateOrder'
 import { discardWorkout, getActiveWorkout, startWorkout } from '../lib/workouts'
 
 export function StartPage() {
   const navigate = useNavigate()
   const openSheet = useOpenSheet()
   const active = useLiveQuery(() => getActiveWorkout().then((w) => w ?? null), [])
-  const templates = useLiveQuery(() => db.templates.orderBy('name').toArray(), [])
+  const templates = useLiveQuery(async () => sortTemplates(await db.templates.toArray()), [])
   const workoutCount = useLiveQuery(() => db.workouts.count(), [])
   const exerciseNames = useLiveQuery(
     async () => new Map((await db.exercises.toArray()).map((e) => [e.id, exerciseLabel(e)] as const)),
@@ -93,15 +95,16 @@ export function StartPage() {
         <p className="empty">Aún no tienes plantillas. Crea una, o guarda un entreno como plantilla al terminarlo.</p>
       )}
 
-      <div className="template-grid">
-        {templates?.map((t) => (
-          <button key={t.id} className="card template-card" onClick={() => setPreview(t)}>
+      {/* Hold a template and drag it to change the order. */}
+      <ReorderList className="template-grid" items={templates ?? []} keyOf={(t) => t.id} onReorder={(ids) => void saveTemplateOrder(ids)}>
+        {(t) => (
+          <button className="card template-card" onClick={() => setPreview(t)}>
             <strong>{t.name}</strong>
             <span className="muted small-text template-exercises">{names(t)}</span>
             {lastUsed?.get(t.id) && <span className="muted small-text">Último: {fmtShortDate(lastUsed.get(t.id)!)}</span>}
           </button>
-        ))}
-      </div>
+        )}
+      </ReorderList>
 
       {preview && (
         <TemplatePreview

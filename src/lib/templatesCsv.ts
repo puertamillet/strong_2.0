@@ -13,6 +13,7 @@ import { parseCsv, toCsv } from './csv'
 import { exerciseFinder, exerciseFromCatalog, exerciseKey, exerciseLabel, strongName } from './exercises'
 import { fmtClock, fmtNumber, fmtRange, normalize, parseNum, parseRange, SET_TYPE_NAMES } from './format'
 import { addToNote } from './legacy'
+import { sortTemplates } from './templateOrder'
 
 /**
  * Templates as a CSV, one row per set, so they can be written or edited in a spreadsheet and
@@ -280,6 +281,8 @@ export function planTemplateImport(parsed: ParsedTemplate[], existing: Template[
       name: p.name,
       updatedAt: Date.now(),
       exercises: p.exercises.map((e) => ({ exerciseId: exerciseFor(e).id, ...e.exercise })),
+      // A replaced template keeps its place in the list.
+      ...(old?.order !== undefined && { order: old.order }),
     }
   })
   return { templates, replaced, newExercises }
@@ -300,6 +303,6 @@ export async function applyTemplateImport(plan: TemplateImportPlan): Promise<voi
 }
 
 export async function exportTemplatesCsv(): Promise<string> {
-  const [templates, exercises] = await Promise.all([db.templates.orderBy('name').toArray(), db.exercises.toArray()])
-  return templatesToCsv(templates, new Map(exercises.map((e) => [e.id, e])))
+  const [templates, exercises] = await Promise.all([db.templates.toArray(), db.exercises.toArray()])
+  return templatesToCsv(sortTemplates(templates), new Map(exercises.map((e) => [e.id, e])))
 }
