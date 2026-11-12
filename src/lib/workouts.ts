@@ -4,6 +4,7 @@ import {
   emptySet,
   newId,
   restAfter,
+  type RepRange,
   type SetType,
   type Template,
   type TemplateExercise,
@@ -307,6 +308,8 @@ export interface TemplateChanges {
   /** Sets of another kind (e.g. a normal set made a top set). */
   setTypes: number
   rests: boolean
+  /** Target reps changed (e.g. 6-8 made 8-10). */
+  ranges: boolean
   order: boolean
 }
 
@@ -320,6 +323,7 @@ export function templateChanges(w: Workout, t: Template): TemplateChanges {
     removedSets: 0,
     setTypes: 0,
     rests: false,
+    ranges: false,
     order: false,
   }
   // Values: the template's sets that take today's values (see templateWithValues).
@@ -342,20 +346,67 @@ export function templateChanges(w: Workout, t: Template): TemplateChanges {
   w.exercises.forEach((we, i) => {
     const te = matches[i]
     if (!te) return
-    c.addedSets += Math.max(0, we.sets.length - te.sets.length)
-    c.removedSets += Math.max(0, te.sets.length - we.sets.length)
-    we.sets.slice(0, te.sets.length).forEach((s, j) => {
-      const ts = te.sets[j]
+    const { added, removed, pairs } = alignSets(te, we)
+    c.addedSets += added
+    c.removedSets += removed
+    for (const [ts, s] of pairs) {
       if (s.type !== ts.type) c.setTypes++
       if (restAfter(s, we) !== restAfter(ts, te)) c.rests = true
-    })
+      if (!sameRange(s.range, ts.range)) c.ranges = true
+    }
   })
   return c
 }
 
-/** True if the exercises, sets or rests differ: updating the template would change its structure. */
+/**
+ * The template's sets paired with the workout's by the fewest changes that turn one into the other
+ * (a set removed, added or of another kind) and, among those, keeping the most rests and targets:
+ * deleting the first warm-up is one set less, not every set below it changing.
+ */
+function alignSets(te: TemplateExercise, we: WorkoutExercise): { added: number; removed: number; pairs: [TemplateSet, WorkoutSet][] } {
+  const t = te.sets
+  const w = we.sets
+  /** A set added, removed or of another kind; a different rest or target costs 1. */
+  const STEP = 100
+  const cost = (a: TemplateSet, b: WorkoutSet) =>
+    (a.type === b.type ? 0 : STEP) + (restAfter(a, te) === restAfter(b, we) ? 0 : 1) + (sameRange(a.range, b.range) ? 0 : 1)
+  // d[i][j]: the cheapest way to turn the first i template sets into the first j of the workout.
+  const d = t.map(() => new Array<number>(w.length + 1).fill(0))
+  d.push(new Array<number>(w.length + 1).fill(0))
+  for (let i = 0; i <= t.length; i++) {
+    for (let j = 0; j <= w.length; j++) {
+      if (i === 0 || j === 0) d[i][j] = (i + j) * STEP
+      else d[i][j] = Math.min(d[i - 1][j] + STEP, d[i][j - 1] + STEP, d[i - 1][j - 1] + cost(t[i - 1], w[j - 1]))
+    }
+  }
+  const pairs: [TemplateSet, WorkoutSet][] = []
+  let added = 0
+  let removed = 0
+  let i = t.length
+  let j = w.length
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && d[i][j] === d[i - 1][j - 1] + cost(t[i - 1], w[j - 1])) {
+      pairs.push([t[--i], w[--j]])
+    } else if (i > 0 && d[i][j] === d[i - 1][j] + STEP) {
+      removed++
+      i--
+    } else {
+      added++
+      j--
+    }
+  }
+  return { added, removed, pairs: pairs.reverse() }
+}
+
+function sameRange(a: RepRange | undefined, b: RepRange | undefined): boolean {
+  return (a?.[0] ?? null) === (b?.[0] ?? null) && (a?.[1] ?? null) === (b?.[1] ?? null)
+}
+
+/** True if the exercises, sets, rests or target reps differ: updating the template would change its structure. */
 export function structureChanged(c: TemplateChanges): boolean {
-  return Boolean(c.addedExercises || c.removedExercises || c.addedSets || c.removedSets || c.setTypes || c.rests || c.order)
+  return Boolean(
+    c.addedExercises || c.removedExercises || c.addedSets || c.removedSets || c.setTypes || c.rests || c.ranges || c.order,
+  )
 }
 
 /** True if today's values or sticky notes differ from the template's. */

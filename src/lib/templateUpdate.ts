@@ -2,7 +2,7 @@ import type { Template, Workout } from '../db'
 import { choose, type DialogOption } from './dialog'
 import { structureChanged, syncTemplate, templateChanges, valuesChanged, type TemplateChanges } from './workouts'
 
-/** What the template takes: today's values (and sticky notes), or also its exercises, sets and rests. */
+/** What the template takes: today's values (and sticky notes), or also its exercises, sets, rests and target reps. */
 export type TemplateUpdate = 'values' | 'all'
 
 function count(n: number, one: string, many: string): string {
@@ -23,6 +23,7 @@ export function describeStructure(c: TemplateChanges): string {
   if (c.setTypes) parts.push(`Cambia el tipo de ${count(c.setTypes, 'serie', 'series')}`)
   if (c.order) parts.push('Cambia el orden de los ejercicios')
   if (c.rests) parts.push('Actualiza los descansos')
+  if (c.ranges) parts.push('Actualiza los rangos de repeticiones')
   return sentences(parts)
 }
 

@@ -9,7 +9,7 @@ import { CloseButton, MinimizeButton, Sheet } from '../components/Sheet'
 import { db, type Workout } from '../db'
 import { fmtClock } from '../lib/format'
 import { useExerciseContexts, useExerciseMap } from '../lib/hooks'
-import { restTimer, useRestTimer } from '../lib/restTimer'
+import { afterMoving, afterRemoving, restTimer, useRestTimer } from '../lib/restTimer'
 import { useCloseSheet } from '../lib/sheets'
 import { offerTemplateUpdate } from '../lib/templateUpdate'
 import { useNow } from '../lib/useNow'
@@ -177,17 +177,20 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
                 fn(w.exercises[ei])
               })
             }
-            onMove={(dir) =>
+            onMove={(dir) => {
+              // A rest running under one of its sets moves with it.
+              restTimer.follow(`${id}:`, afterMoving(ei, ei + dir))
               mutate((w) => {
                 const [item] = w.exercises.splice(ei, 1)
                 w.exercises.splice(ei + dir, 0, item)
               })
-            }
-            onRemove={() =>
+            }}
+            onRemove={() => {
+              restTimer.follow(`${id}:`, afterRemoving(ei))
               mutate((w) => {
                 w.exercises.splice(ei, 1)
               })
-            }
+            }}
           />
         ))}
 

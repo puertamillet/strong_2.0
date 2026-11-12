@@ -300,6 +300,10 @@ describe('rests per set, target reps and notes', () => {
     const changes: [(x: typeof w) => void, boolean, boolean][] = [
       [(x) => (x.exercises[0].sets[1].rest = 200), false, true],
       [(x) => (x.exercises[1].sets[0].rest = 30), false, true],
+      [(x) => (x.exercises[0].sets[2].range = [8, 10]), false, true],
+      [(x) => delete x.exercises[1].sets[0].range, false, true],
+      [(x) => (x.exercises[0].sets[0].range = [6, 6]), false, true],
+      [(x) => (x.exercises[0].sets[1].range = [4, 6]), false, false],
       [(x) => Object.assign(x.exercises[1].sets[1], { reps: 9, done: true }), true, false],
       [(x) => (x.exercises[0].stickyNote = '50 de altura'), true, false],
       [(x) => (x.exercises[0].sets[1].done = true), false, false],
@@ -310,6 +314,57 @@ describe('rests per set, target reps and notes', () => {
       const c = templateChanges(copy, t)
       expect([valuesChanged(c), structureChanged(c)]).toEqual([values, structure])
     }
+  })
+
+  it('tells a deleted set as one set less, not as every set below it changing', async () => {
+    const t = template()
+    t.exercises[0].sets.unshift({ type: 'warmup', weight: 10, reps: 10, rest: 90 })
+    const w = (await db.workouts.get(await startFrom(t)))!
+    const cases: [(x: typeof w) => void, Partial<ReturnType<typeof templateChanges>>][] = [
+      // The first warm-up (rest 1:30), the second (rest 1:00), the top set, the last set.
+      [(x) => x.exercises[0].sets.splice(0, 1), { removedSets: 1, setTypes: 0, rests: false, ranges: false }],
+      [(x) => x.exercises[0].sets.splice(1, 1), { removedSets: 1, setTypes: 0, rests: false, ranges: false }],
+      [(x) => x.exercises[0].sets.splice(2, 1), { removedSets: 1, setTypes: 0, rests: false, ranges: false }],
+      [(x) => x.exercises[1].sets.splice(1, 1), { removedSets: 1, setTypes: 0, rests: false, ranges: false }],
+      // Deleted and another kind added; a kind changed in the middle.
+      [
+        (x) => {
+          x.exercises[0].sets.splice(1, 1)
+          x.exercises[0].sets.push({ type: 'drop', weight: 60, reps: 10, done: false, rest: 0 })
+        },
+        { removedSets: 1, addedSets: 1, setTypes: 0, rests: false },
+      ],
+      [(x) => (x.exercises[0].sets[2].type = 'normal'), { removedSets: 0, addedSets: 0, setTypes: 1, rests: false }],
+      // Its rest taken away too: the rest changes.
+      [
+        (x) => {
+          x.exercises[0].sets.splice(0, 1)
+          x.exercises[0].sets[0].rest = 0
+        },
+        { removedSets: 1, setTypes: 0, rests: true },
+      ],
+    ]
+    for (const [change, expected] of cases) {
+      const copy = structuredClone(w)
+      change(copy)
+      expect(templateChanges(copy, t)).toMatchObject(expected)
+    }
+  })
+
+  it('takes a target range changed during the workout when updating the template', async () => {
+    const id = await startFrom(template())
+    await mutateWorkout(id, (x) => {
+      x.exercises[0].sets[2].range = [8, 10]
+      delete x.exercises[1].sets[1].range
+    })
+    const w = (await db.workouts.get(id))!
+    expect(templateChanges(w, template())).toMatchObject({ ranges: true, rests: false, setTypes: 0 })
+    // Only the values: the targets stay as they were.
+    expect(templateWithValues(template(), w).exercises[0].sets[2].range).toEqual([6, 8])
+    await syncTemplate(w, 'empuje', 'all')
+    const t = (await db.templates.get('empuje'))!
+    expect(t.exercises[0].sets.map((s) => s.range)).toEqual([undefined, [4, 6], [8, 10]])
+    expect(t.exercises[1].sets.map((s) => s.range)).toEqual([[9, 12], undefined])
   })
 
   it('saves values and the sticky note, keeping rests and targets', async () => {

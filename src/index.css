@@ -436,6 +436,91 @@ h3 {
   font-weight: 500;
 }
 
+/* The sets, each with its rest under it; a deleted one folds away. */
+.set-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: -8px;
+}
+
+.set-list:empty {
+  display: none;
+}
+
+/* Only folding is animated: when the list without the set arrives, the next one takes its place at once. */
+.set-block {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.set-block.leaving {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.set-block-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.set-block-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+/* Swiping a row to the left shows «Borrar» behind it (components/SwipeToDelete). */
+.swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  touch-action: pan-y;
+}
+
+.swipe-content {
+  position: relative;
+  background: var(--surface);
+  transition: transform 0.18s ease;
+}
+
+.swipe-action {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: width 0.18s ease;
+}
+
+.swipe.swiping .swipe-content,
+.swipe.swiping .swipe-action {
+  transition: none;
+}
+
+/* A text box scrolls on its own, so it doesn't take the row's pan-y: without this, a horizontal drag on it is the browser's. */
+.swipe textarea,
+.swipe input {
+  touch-action: pan-y;
+}
+
+.note-swipe .sticky-note,
+.note-swipe .notes {
+  display: block;
+}
+
 /* Rest after each set: a line across the card with the time; while it runs, a bar that empties. */
 .rest-line {
   position: relative;

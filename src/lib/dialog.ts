@@ -83,6 +83,21 @@ export async function askText(title: string, initial = '', confirm = 'Guardar', 
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+/** Asks for a set's target reps, typed as "6-8" or "8": the text, '' for none, or null if cancelled. */
+export async function askRange(title: string, initial: string, message?: string): Promise<string | null> {
+  const value = await show({
+    title,
+    message,
+    input: { initial, placeholder: 'Por ejemplo, 6-8' },
+    options: [
+      { label: 'Guardar', value: true, style: 'primary' },
+      { label: 'Sin rango', value: '' },
+      { label: 'Cancelar', value: false },
+    ],
+  })
+  return typeof value === 'string' ? value.trim() : null
+}
+
 /**
  * Asks for a rest with minute and second wheels (10 s steps by default). Resolves to the
  * seconds chosen (0 for "Sin descanso"), or null if cancelled.
