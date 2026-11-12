@@ -24,6 +24,7 @@ import {
   disableReminder,
   enablePush,
   enableReminder,
+  nextReminderAt,
   scheduleRestPush,
   setReminderTime,
   testReminder,
@@ -33,14 +34,14 @@ import {
   type PushStatus,
 } from '../lib/push'
 import { useRestTimer } from '../lib/restTimer'
-import { setSoundInSilentMode, signalRestOver, silentModeSoundSupported, useSoundInSilentMode } from '../lib/sound'
+import { signalRestOver } from '../lib/sound'
 import { applyTemplateImport, exportTemplatesCsv, prepareTemplateImport } from '../lib/templatesCsv'
 import { seedIfEmpty } from '../seed'
 
 type Status = { kind: 'idle' } | { kind: 'busy'; text: string } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
 
 const PUSH_HELP: Record<PushStatus, string> = {
-  on: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Con la app abierta también llega, además del ping. Si no vibra: Ajustes del iPhone → Notificaciones → Strong 2.0, con los sonidos activados, y Sonidos y vibraciones, con la vibración activada.',
+  on: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Con la app abierta también llega, además del ping, y se quita sola a los pocos segundos; las que lleguen con la app cerrada se quitan al volver a ella. Si no vibra: Ajustes del iPhone → Notificaciones → Strong 2.0, con los sonidos activados, y Sonidos y vibraciones, con la vibración activada.',
   off: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Una app web no puede hacer vibrar el iPhone por sí misma: la vibración llega con la notificación.',
   'no-server':
     'Esta versión no tiene servidor de avisos. Los pasos para conectarlo (Cloudflare, gratis) están en el README del repositorio.',
@@ -55,8 +56,7 @@ function clockText(minutes: number): string {
 }
 
 /** "lunes, 16 de noviembre a las 15:00". */
-function whenText(at: number): string {
-  const d = new Date(at)
+function whenText(d: Date): string {
   return `${d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${clockText(d.getHours() * 60 + d.getMinutes())}`
 }
 
@@ -75,7 +75,6 @@ export function SettingsPage() {
     return { workouts, exercises, templates }
   }, [])
   const keepAwake = useKeepAwakeSetting()
-  const soundInSilentMode = useSoundInSilentMode()
   const push = usePushStatus()
   const reminderStatus = useReminderStatus()
   const reminder = useReminder()
@@ -292,22 +291,10 @@ export function SettingsPage() {
           <p className="muted small-text">Este navegador no permite mantener la pantalla encendida.</p>
         )}
         <p className="muted small-text">
-          Al acabar el descanso suena un ping si la app está en pantalla. Con el iPhone bloqueado o en otra app, iOS
-          congela las apps web y no puede sonar: para eso está el aviso de abajo.
-        </p>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={silentModeSoundSupported && soundInSilentMode}
-            disabled={!silentModeSoundSupported}
-            onChange={(e) => setSoundInSilentMode(e.target.checked)}
-          />
-          Sonar aunque el iPhone esté en silencio
-        </label>
-        <p className="muted small-text">
-          {silentModeSoundSupported
-            ? 'Para sonar en silencio, iOS trata el ping como música: lo que estés escuchando se pausa mientras suena, y justo después la app suelta el audio para que pueda seguir. Sin esta opción, el ping suena por encima sin pausar nada, pero no suena con el iPhone en silencio.'
-            : 'Este navegador no permite sonar en modo silencio: si no oyes el ping, quita el modo silencio.'}
+          Al acabar el descanso suena un ping si la app está en pantalla, por encima de la música o el podcast y sin
+          pararlos. Con el iPhone en silencio el ping no suena (iOS solo deja sonar en silencio pausando lo que
+          escuchas): entonces avisa la vibración de la notificación. Con el iPhone bloqueado o en otra app, iOS congela
+          las apps web y no puede sonar: para eso está el aviso de abajo.
         </p>
         <button className="btn full" onClick={signalRestOver}>
           Probar el sonido
@@ -353,7 +340,7 @@ export function SettingsPage() {
         </label>
         <p className="muted small-text">
           {reminderStatus === 'on'
-            ? `${reminder.next ? `Próximo aviso: ${whenText(reminder.next)}. ` : ''}Al tocarlo se abre «Grabar esta semana», que también está en Entrenar. En el entreno verás marcada la serie que te toca grabar.`
+            ? `Próximo aviso: ${whenText(nextReminderAt(reminder))}. Al tocarlo se abre «Grabar esta semana», que también está en Entrenar. En el entreno verás marcada la serie que te toca grabar.`
             : reminderStatus === 'off'
               ? 'Cada lunes a esa hora te llega un aviso para elegir los ejercicios que te toca grabar esa semana. En el entreno verás marcada su primera serie, o la que marques en la plantilla.'
               : PUSH_HELP[reminderStatus]}

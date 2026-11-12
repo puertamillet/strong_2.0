@@ -2,7 +2,8 @@
  * Notifications, added to the service worker that vite-plugin-pwa generates (see vite.config.ts
  * and src/lib/push.ts). The push server sends an empty message when a rest is over; the text is
  * made here, on the phone, from the workout in progress. The weekly reminder to choose what to
- * film comes with a message, { type: 'grabar' }, and a tap on it opens that page.
+ * film comes with a message, { type: 'grabar' }, and a tap on it opens that page. The app takes
+ * them all away once you are in it (followNotifications in src/lib/push.ts).
  */
 
 const numberFormat = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2, useGrouping: false })
@@ -51,6 +52,26 @@ async function nextSetText() {
   }
 }
 
+/**
+ * Shows a notification in place of the earlier ones with its tag, which iOS doesn't replace by
+ * itself (WebKit bug 258922), and tells the app: if it is on screen, it takes the notification
+ * away after a few seconds.
+ */
+async function show(title, options) {
+  try {
+    for (const old of await self.registration.getNotifications()) if (old.tag === options.tag) old.close()
+  } catch {
+    // Show it anyway.
+  }
+  await self.registration.showNotification(title, options)
+  try {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    for (const client of windows) client.postMessage({ type: 'notified' })
+  } catch {
+    // The notification is shown: that is what matters.
+  }
+}
+
 /** The message that came with a push: null for the end of a rest, which comes without one. */
 function messageOf(event) {
   try {
@@ -67,8 +88,8 @@ async function showRestOver() {
   } catch {
     // Show the notification anyway.
   }
-  await self.registration.showNotification('Descanso terminado', {
-    body: next ? `Siguiente: ${next}` : 'A por la siguiente serie',
+  await show('Descanso terminado', {
+    body: next ?? 'A por la siguiente serie',
     tag: 'descanso',
     renotify: true,
     icon: 'pwa-192x192.png',
@@ -78,7 +99,7 @@ async function showRestOver() {
 
 /** The weekly reminder: a tap opens the page to choose the exercises (#/filming). */
 async function showFilmingReminder() {
-  await self.registration.showNotification('Grabar esta semana', {
+  await show('Grabar esta semana', {
     body: 'Elige los ejercicios que te toca grabar: en el entreno verás marcada la serie.',
     tag: 'grabar',
     icon: 'pwa-192x192.png',
