@@ -24,7 +24,7 @@ const kg = (v: number) => `${fmtNumber(Math.round(v * 10) / 10)} kg`
 const METRICS: Record<MetricKey, { label: string; short: string; get: (s: Session) => number; fmt: (v: number) => string }> = {
   e1rm: { label: '1RM estimado', short: '1RM', get: (s) => s.e1rm, fmt: kg },
   weight: { label: 'Peso máximo', short: 'Peso', get: (s) => s.maxWeight, fmt: kg },
-  volume: { label: 'Volumen por sesión', short: 'Volumen', get: (s) => s.volume, fmt: (v) => `${fmtInt(v)} kg` },
+  volume: { label: 'Tonelaje por sesión', short: 'Tonelaje', get: (s) => s.volume, fmt: (v) => `${fmtInt(v)} kg` },
   reps: { label: 'Repeticiones máximas', short: 'Reps', get: (s) => s.maxReps, fmt: (v) => `${fmtInt(v)} reps` },
 }
 
@@ -294,7 +294,7 @@ function RecordsTab({ sessions }: { sessions: Session[] }) {
           value={(r) => `${fmtInt(r.value)} kg`}
           detail={setText}
         />
-        <RecordCard title="Volumen en una sesión" rec={records.maxVolume} value={(r) => `${fmtInt(r.value)} kg`} />
+        <RecordCard title="Tonelaje en una sesión" rec={records.maxVolume} value={(r) => `${fmtInt(r.value)} kg`} />
         <RecordCard title="Máximo de repeticiones" rec={records.maxReps} value={(r) => `${fmtInt(r.value)} reps`} detail={setText} />
       </div>
 

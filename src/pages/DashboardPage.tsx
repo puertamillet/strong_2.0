@@ -56,8 +56,8 @@ const METRICS = {
     counts: true,
   },
   volume: {
-    label: 'Volumen',
-    title: 'Volumen por semana',
+    label: 'Tonelaje',
+    title: 'Tonelaje por semana',
     value: (w) => w.volume,
     text: (v) => `${fmtInt(v)} kg`,
     average: (v) => `${fmtInt(v)} kg`,

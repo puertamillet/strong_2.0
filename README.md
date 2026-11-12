@@ -4,7 +4,7 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 
 ## Funciones
 
-- Panel, la primera pestaña: esta semana (entrenos, series, volumen y tiempo) frente a la media de las anteriores, cada cifra semana a semana en las últimas 12 semanas, y las series semanales de cada músculo en la figura del cuerpo (en cuatro tonos) y en barras, con las 12 semanas de cada músculo al tocarlo. Cuentan las series reales: sin calentamientos y, en los unilaterales, cada par de lados es una serie.
+- Panel, la primera pestaña: esta semana (entrenos, series, tonelaje y tiempo) frente a la media de las anteriores, cada cifra semana a semana en las últimas 12 semanas, y las series semanales de cada músculo en la figura del cuerpo (en cuatro tonos) y en barras, con las 12 semanas de cada músculo al tocarlo. Cuentan las series reales: sin calentamientos y, en los unilaterales, cada par de lados es una serie.
 - Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, top set, back off, drop set, al fallo) y descanso propio en cada serie, elegido con una rueda de minutos y segundos de 10 en 10. Bajo cada serie, una línea a todo lo ancho con su descanso; al marcar la serie se convierte en una barra que se va vaciando. Abajo, el temporizador con −10 y +10 s, y un ping al terminar (con la app en pantalla). El ping suena por encima de la música o el podcast sin pararlos; en Ajustes se puede probar y hacer que suene aunque el iPhone esté en silencio, y entonces iOS pausa lo que estés escuchando mientras dura el ping; justo después la app suelta el audio para que pueda seguir.
 - Durante el entreno se puede cambiar todo lo de la plantilla, como en Strong: deslizar a la izquierda una serie, el descanso de debajo o una nota para borrarlos (un poco y queda el botón «Borrar»; del todo y se borra), añadir series, cambiar su tipo (menú del número de serie) o su rango de repeticiones (tocándolo), sus descansos, las notas y el orden de los ejercicios. Al terminar se ofrece pasar los cambios a la plantilla.
 - Respuesta háptica al marcar, añadir y borrar series: en iPhone con iOS 18 o posterior (una web app no puede hacer vibrar el iPhone de otra forma) y en Android.
@@ -20,7 +20,7 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 - Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez.
 - Copia de seguridad completa en JSON (guardar y restaurar) y exportación a CSV con el formato de Strong.
 
-- Progreso por ejercicio: gráficas de 1RM estimado, peso máximo, volumen y repeticiones (3 meses, 1 año o todo), récords personales y mejor peso por repeticiones, e historial de sesiones.
+- Progreso por ejercicio: gráficas de 1RM estimado, peso máximo, tonelaje (peso × repeticiones) y repeticiones (3 meses, 1 año o todo), récords personales y mejor peso por repeticiones, e historial de sesiones.
 - Récords marcados con un trofeo al registrar una serie y en el historial.
 
 ## Publicación
