@@ -1,0 +1,11 @@
+{
+  "name": "strong-native",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Strong 2.0's own native plugin for the iPhone app: the end-of-rest ping and keeping the screen on.",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}

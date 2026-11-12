@@ -1,30 +1,11 @@
 import { haptic } from './haptics'
+import { isNativeApp, StrongNative } from './native'
+import { ATTACK, FADED, PARTIALS, PING_DEFAULTS, TOTAL_AMPLITUDE, type PingOptions } from './ping'
 
 /**
- * The sound at the end of a rest: one short, high "ping", synthesised with Web Audio so there is
- * no sound file to download or cache. A sine near 2 kHz (where the iPhone speaker is loud and the
- * sound cuts through the gym's noise) with a 3 ms attack and an exponential fade, plus two quieter
- * overtones that fade sooner and give it a metallic edge.
+ * The sound at the end of a rest, the ping (lib/ping). The web app synthesises it with Web Audio,
+ * so there is no sound file to download or cache; the iPhone app plays it natively (lib/native).
  */
-
-/** [frequency ratio, relative amplitude, relative ring time] */
-const PARTIALS: readonly (readonly [number, number, number])[] = [
-  [1, 1, 1],
-  [2, 0.25, 0.4],
-  [3, 0.06, 0.2],
-]
-const TOTAL_AMPLITUDE = PARTIALS.reduce((sum, p) => sum + p[1], 0)
-
-export interface PingOptions {
-  /** Frequency in Hz. */
-  pitch?: number
-  /** Seconds until it has faded out. */
-  ring?: number
-  /** Output gain. */
-  volume?: number
-}
-
-export const PING_DEFAULTS: Required<PingOptions> = { pitch: 1976, ring: 0.9, volume: 0.9 }
 
 /** Schedules the ping on `ctx` in `delay` seconds and returns how long until it is over, in seconds. */
 export function playPing(
@@ -44,8 +25,8 @@ export function playPing(
     const env = ctx.createGain()
     const end = t + ring * ringTime
     env.gain.setValueAtTime(0, t)
-    env.gain.linearRampToValueAtTime(amplitude / TOTAL_AMPLITUDE, t + 0.003)
-    env.gain.exponentialRampToValueAtTime(0.0001, end)
+    env.gain.linearRampToValueAtTime(amplitude / TOTAL_AMPLITUDE, t + ATTACK)
+    env.gain.exponentialRampToValueAtTime(FADED, end)
     osc.connect(env).connect(out)
     osc.start(t)
     osc.stop(end + 0.01)
@@ -74,9 +55,11 @@ function mixWithOtherAudio(): void {
 /**
  * Gets the shared audio context running. iOS only lets a page play sound from a context started
  * during a tap, so this runs when a rest starts (the tap on ✓) and the ping uses the same context
- * when the rest is over; after the ping it is closed (see signalRestOver).
+ * when the rest is over; after the ping it is closed (see signalRestOver). The iPhone app has no
+ * audio context at all: it plays the ping natively.
  */
 export function primeAudio(): AudioContext | null {
+  if (isNativeApp) return null
   try {
     mixWithOtherAudio()
     if (!audio) {
@@ -100,9 +83,16 @@ let release: ReturnType<typeof setTimeout> | undefined
  * vibrate on its own (see haptics): the notification, which also comes with the app open, does. When
  * the ping has sounded the audio context is closed, so the page holds no audio while you rest; the
  * next rest opens a new one (see primeAudio).
+ *
+ * The iPhone app vibrates, and its ping also sounds with the iPhone in silent mode, over the podcast
+ * or the music, which only get lower for a moment.
  */
 export function signalRestOver(): void {
   haptic([200, 100, 200])
+  if (isNativeApp) {
+    void StrongNative.ping().catch(() => {})
+    return
+  }
   try {
     const ctx = primeAudio()
     if (!ctx) return

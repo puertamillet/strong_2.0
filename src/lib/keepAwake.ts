@@ -1,8 +1,9 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { isNativeApp, StrongNative } from './native'
 
 /**
- * Keeps the screen on during a workout (Screen Wake Lock API), so the phone only
- * locks when you lock it yourself. It's a setting, on by default.
+ * Keeps the screen on during a workout (Screen Wake Lock API; natively in the iPhone app), so the
+ * phone only locks when you lock it yourself. It's a setting, on by default.
  */
 const KEY = 'strong2.keepAwake'
 const listeners = new Set<() => void>()
@@ -37,7 +38,7 @@ export function useKeepAwakeSetting(): boolean {
   )
 }
 
-export const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
+export const wakeLockSupported = isNativeApp || (typeof navigator !== 'undefined' && 'wakeLock' in navigator)
 
 /**
  * Holds a screen wake lock while `active`. The browser drops the lock whenever the
@@ -47,6 +48,11 @@ export const wakeLockSupported = typeof navigator !== 'undefined' && 'wakeLock' 
 export function useScreenWakeLock(active: boolean): void {
   useEffect(() => {
     if (!active || !wakeLockSupported) return
+    if (isNativeApp) {
+      // iOS keeps it while the app is open, also after going to another app and back.
+      void StrongNative.keepAwake({ on: true }).catch(() => {})
+      return () => void StrongNative.keepAwake({ on: false }).catch(() => {})
+    }
     let lock: WakeLockSentinel | null = null
     let pending = false
     let stopped = false

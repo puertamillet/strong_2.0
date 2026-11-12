@@ -1,0 +1,36 @@
+import { Capacitor, registerPlugin } from '@capacitor/core'
+
+/**
+ * The iPhone app (ios/, made with Capacitor) is this same web app inside a native shell, with native
+ * plugins for what a web app can't do on an iPhone: local notifications (lib/localNotifications),
+ * vibration (lib/haptics), saving files (lib/backup) and the app's own plugin, StrongNative, for the
+ * ping and keeping the screen on. In the browser and in the web app on the home screen this is
+ * false, and nothing native is used.
+ */
+export const isNativeApp = Capacitor.isNativePlatform()
+
+/** The app's own plugin: native/strong-native. */
+export interface StrongNativePlugin {
+  /**
+   * Plays the end-of-rest ping (sounds/ping.wav, see lib/ping): also with the iPhone in silent mode,
+   * and over the podcast or the music, which only get lower for a moment (they aren't paused).
+   */
+  ping(): Promise<void>
+  /** Keeps the screen on (`on: true`), or lets the iPhone lock by itself again. */
+  keepAwake(options: { on: boolean }): Promise<void>
+}
+
+export const StrongNative = registerPlugin<StrongNativePlugin>('StrongNative')
+
+/** The native plugins the app uses (package.json). */
+const PLUGINS = ['StrongNative', 'LocalNotifications', 'Haptics', 'Filesystem', 'Share', 'App']
+
+/**
+ * A plugin missing from the iPhone app is a mistake in its build: it is said in the console, where
+ * the iOS workflow looks for errors when it runs the app in the simulator.
+ */
+export function checkNativePlugins(): void {
+  if (!isNativeApp) return
+  const missing = PLUGINS.filter((name) => !Capacitor.isPluginAvailable(name))
+  if (missing.length) console.error(`Faltan plugins nativos en la app: ${missing.join(', ')}`)
+}

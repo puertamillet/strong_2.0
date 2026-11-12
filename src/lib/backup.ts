@@ -1,7 +1,10 @@
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { db, type Exercise, type Template, type Workout } from '../db'
 import { strongName } from './exercises'
 import { expandTemplateSides, expandWorkoutSides, mergeTemplateNotes, mergeWorkoutNotes } from './legacy'
 import { migrateToCatalog } from './migrations'
+import { isNativeApp } from './native'
 import { parseStrongCsv, workoutsToStrongCsv } from './strong'
 
 export interface ImportSummary {
@@ -125,6 +128,7 @@ export function markBackupDone(): void {
  * Returns false if the user cancelled the share sheet.
  */
 export async function saveFile(name: string, content: string, type: string): Promise<boolean> {
+  if (isNativeApp) return shareFile(name, content)
   const file = new File([content], name, { type })
   if (navigator.canShare?.({ files: [file] })) {
     try {
@@ -144,6 +148,22 @@ export async function saveFile(name: string, content: string, type: string): Pro
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
   return true
+}
+
+/**
+ * The iPhone app can't share or download a file made in the page: it is written in the app's cache
+ * and handed to the share sheet from there.
+ */
+async function shareFile(name: string, content: string): Promise<boolean> {
+  const { uri } = await Filesystem.writeFile({ path: name, data: content, directory: Directory.Cache, encoding: Encoding.UTF8 })
+  try {
+    await Share.share({ files: [uri] })
+    return true
+  } catch (e) {
+    // Closed without choosing where.
+    if (/cancel/i.test(e instanceof Error ? e.message : String(e))) return false
+    throw e
+  }
 }
 
 export function fileStamp(d = new Date()): string {

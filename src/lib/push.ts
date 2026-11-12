@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react'
+import * as local from './localNotifications'
+import { isNativeApp } from './native'
 
 /**
  * Notifications with the iPhone locked or in another app (Web Push): the end of each rest, and a
@@ -13,6 +15,10 @@ import { useSyncExternalStore } from 'react'
  *
  * Both use the same push subscription, which exists while either is on. On iPhone it needs iOS
  * 16.4+, the app added to the home screen and permission to notify.
+ *
+ * The iPhone app (lib/native) has the same two, with the same settings, as local notifications
+ * that it schedules itself (lib/localNotifications): no server, no subscription. There rest alerts
+ * are on unless turned off, and permission to notify is asked the first time the app opens.
  */
 
 /** The push server, set when the app is built (empty: no server, no notifications). */
@@ -49,6 +55,8 @@ const listeners = new Set<() => void>()
 let endpoint = readItem(KEY)
 let restOff = readItem(REST_KEY) === 'off'
 let reminder = readReminder()
+/** iPhone app: whether iOS lets it notify (null until known). */
+let permission: local.Permission | null = null
 
 function readItem(key: string): string | null {
   try {
@@ -101,11 +109,21 @@ function setReminder(next: Reminder): void {
   changed()
 }
 
+function setPermission(next: local.Permission): void {
+  if (next === permission) return
+  permission = next
+  changed()
+}
+
 function canPush(): boolean {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
 function statusFor(on: boolean): PushStatus {
+  if (isNativeApp) {
+    if (permission === 'denied') return 'denied'
+    return on && permission === 'granted' ? 'on' : 'off'
+  }
   if (!SERVER) return 'no-server'
   if (!canPush()) return 'not-installed'
   if (Notification.permission === 'denied') return 'denied'
@@ -199,6 +217,11 @@ async function unsubscribe(): Promise<void> {
 
 /** Turns rest alerts on. */
 export async function enablePush(): Promise<PushStatus> {
+  if (isNativeApp) {
+    setPermission(await local.askPermission())
+    setRestOff(false)
+    return pushStatus()
+  }
   const subscription = await subscribe()
   if (typeof subscription === 'string') return subscription
   setRestOff(false)
@@ -208,6 +231,11 @@ export async function enablePush(): Promise<PushStatus> {
 
 /** Turns rest alerts off (the weekly reminder, if on, keeps working). */
 export async function disablePush(): Promise<void> {
+  if (isNativeApp) {
+    setRestOff(true)
+    await local.scheduleRest(null)
+    return
+  }
   if (endpoint) send(endpoint, null)
   if (reminder.on && endpoint) setRestOff(true)
   else await unsubscribe()
@@ -229,6 +257,13 @@ function keysOf(subscription: PushSubscription): { endpoint: string; keys?: Reco
 
 /** Turns the weekly reminder on, or moves it to another time. */
 export async function enableReminder(time: ReminderTime): Promise<PushStatus> {
+  if (isNativeApp) {
+    setPermission(await local.askPermission())
+    if (permission !== 'granted') return statusFor(true)
+    await local.scheduleReminder(time)
+    setReminder({ on: true, day: time.day, minutes: time.minutes })
+    return 'on'
+  }
   const subscription = await subscribe()
   if (typeof subscription === 'string') return subscription
   try {
@@ -256,6 +291,7 @@ export async function setReminderTime(time: ReminderTime): Promise<void> {
 
 /** Asks the server for the reminder now (10 seconds later), to try it. Throws if the server fails. */
 export async function testReminder(): Promise<void> {
+  if (isNativeApp) return local.tryReminder()
   const registration = await navigator.serviceWorker.getRegistration()
   const subscription = await registration?.pushManager.getSubscription()
   if (!subscription) throw new Error('No hay suscripción a los avisos: desactiva y vuelve a activar el aviso.')
@@ -267,6 +303,10 @@ export async function testReminder(): Promise<void> {
 export async function disableReminder(): Promise<void> {
   const { day, minutes } = reminder
   setReminder({ on: false, day, minutes })
+  if (isNativeApp) {
+    await local.scheduleReminder(null)
+    return
+  }
   if (endpoint) await sendReminder({ endpoint }, null).catch(() => {})
   if (restOff) await unsubscribe()
 }
@@ -277,6 +317,7 @@ export async function disableReminder(): Promise<void> {
  * reminder is sent again, in case the address or the time zone changed.
  */
 export async function checkPushSubscription(): Promise<void> {
+  if (isNativeApp) return checkNative(true)
   if (!endpoint || !canPush()) return
   try {
     const registration = await navigator.serviceWorker.getRegistration()
@@ -294,6 +335,22 @@ export async function checkPushSubscription(): Promise<void> {
       if (reminder.on) await sendReminder({ endpoint: old }, null).catch(() => {})
     }
     if (reminder.on && SERVER) await sendReminder(keysOf(subscription), reminder)
+  } catch {
+    // Keep what we have.
+  }
+}
+
+/**
+ * iPhone app, when it opens (`opening`) or comes back to the front: what iOS lets it do now (it can
+ * be changed in iPhone Settings meanwhile), asking the first time unless rest alerts were turned
+ * off; and the weekly reminder set again, in case anything changed it.
+ */
+async function checkNative(opening: boolean): Promise<void> {
+  try {
+    let now = await local.checkPermission()
+    if (opening && now === 'prompt' && !restOff) now = await local.askPermission()
+    setPermission(now)
+    if (reminder.on && now === 'granted') await local.scheduleReminder(reminder)
   } catch {
     // Keep what we have.
   }
@@ -319,6 +376,10 @@ async function clearNotifications(): Promise<void> {
  * opens the app there or, if the app was already open, tells it where to go.
  */
 export function followNotifications(): void {
+  if (isNativeApp) {
+    local.followLocalNotifications(() => void checkNative(false), SEEN_AFTER)
+    return
+  }
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
   const onScreen = () => document.visibilityState === 'visible'
   const clear = () => {
@@ -343,7 +404,14 @@ function send(to: string, endsAt: number | null): void {
   }).catch(() => {})
 }
 
-/** Tells the server when the current rest ends (null: there is none now), if rest alerts are on. */
+/**
+ * Tells the server when the current rest ends (null: there is none now), if rest alerts are on. In
+ * the iPhone app, schedules the notification itself.
+ */
 export function scheduleRestPush(endsAt: number | null): void {
+  if (isNativeApp) {
+    if (endsAt === null || (!restOff && permission === 'granted')) void local.scheduleRest(endsAt)
+    return
+  }
   if (SERVER && endpoint && !restOff) send(endpoint, endsAt)
 }
