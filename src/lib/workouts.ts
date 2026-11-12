@@ -120,6 +120,10 @@ export interface ExerciseContext {
   bestWeight: number
   /** Earlier sessions; 0 means this is the first time. */
   sessions: number
+  /** The sets of the last sessions with weights and reps, oldest first (up to STALL_SESSIONS). */
+  recent: WorkoutSet[][]
+  /** Sessions in a row, up to the last one, that did not improve (see stalledSessions). */
+  stalled: number
 }
 
 /** What came before a workout for one exercise: last session and best marks (for "Anterior" and PRs). */
@@ -140,12 +144,82 @@ export async function exerciseContext(exerciseId: string, workoutId: string, bef
     }
   }
   const latest = earlier[earlier.length - 1]
+  // Each session's sets that count for progress; the same exercise twice in a workout is one session.
+  const sessions = earlier
+    .map((w) => w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets.filter(counts)))
+    .filter((sets) => sets.length > 0)
   return {
     last: latest?.exercises.find((e) => e.exerciseId === exerciseId),
     bestE1rm,
     bestWeight,
     sessions: earlier.length,
+    recent: sessions.slice(-STALL_SESSIONS),
+    stalled: stalledSessions(sessions),
   }
+}
+
+/** Kinds of set that make up the work (not warm-ups, drops or sets to failure). */
+export const WORKING_SETS: ReadonlySet<SetType> = new Set(['normal', 'top', 'backoff'])
+
+/**
+ * For each set, the same set in another session: the same kind of set in the same order; for a
+ * working set, else the working set in the same position (a top set after sets logged as normal,
+ * as in Strong).
+ */
+export function sameSets(sets: WorkoutSet[], other: WorkoutSet[]): (WorkoutSet | undefined)[] {
+  const byType = new Map<SetType, WorkoutSet[]>()
+  for (const s of other) byType.set(s.type, [...(byType.get(s.type) ?? []), s])
+  const working = other.filter((s) => WORKING_SETS.has(s.type))
+  const seen = new Map<SetType, number>()
+  let position = 0
+  return sets.map((s) => {
+    const n = seen.get(s.type) ?? 0
+    seen.set(s.type, n + 1)
+    const at = WORKING_SETS.has(s.type) ? position++ : -1
+    return byType.get(s.type)?.[n] ?? (at >= 0 && !byType.has(s.type) ? working[at] : undefined)
+  })
+}
+
+/** Sessions in a row without improving that make an exercise stalled, and how far back each one looks. */
+export const STALL_SESSIONS = 4
+
+/** A done set with reps that is not a warm-up: the sets that show progress. */
+function counts(s: WorkoutSet): boolean {
+  return s.done && s.type !== 'warmup' && (s.reps ?? 0) > 0
+}
+
+/**
+ * True if some set beats the same set in each of the sessions before: more weight or more reps
+ * than each of them (more weight with fewer reps counts too). A set that was not done before
+ * doesn't count.
+ */
+export function improves(sets: WorkoutSet[], before: WorkoutSet[][]): boolean {
+  const same = before.map((other) => sameSets(sets, other))
+  return sets.some((s, i) => {
+    if (!counts(s)) return false
+    const earlier = same.map((m) => m[i]).filter((o): o is WorkoutSet => o !== undefined)
+    const [w, r] = [s.weight ?? 0, s.reps ?? 0]
+    return earlier.length > 0 && earlier.every((o) => (o.weight ?? 0) < w - 1e-9 || (o.reps ?? 0) < r)
+  })
+}
+
+/** How many sessions in a row, up to the last, did not improve on the STALL_SESSIONS before each. */
+export function stalledSessions(sessions: WorkoutSet[][]): number {
+  let streak = 0
+  for (let k = sessions.length - 1; k >= 1; k--) {
+    if (improves(sessions[k], sessions.slice(Math.max(0, k - STALL_SESSIONS), k))) break
+    streak++
+  }
+  return streak
+}
+
+/**
+ * Stalled: the last STALL_SESSIONS sessions did not improve, nor has this workout so far. Returns
+ * how many sessions it has been, or 0.
+ */
+export function stalledFor(sets: WorkoutSet[], ctx: ExerciseContext | undefined): number {
+  if (!ctx || ctx.stalled < STALL_SESSIONS || improves(sets, ctx.recent)) return 0
+  return ctx.stalled
 }
 
 /** True if a completed set beats every earlier session (estimated 1RM or weight). */
