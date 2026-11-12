@@ -4,7 +4,7 @@ import { fmtClock, fmtNumber, fmtRange, fmtRest, fmtSet, parseRange, SET_TYPE_NA
 import { haptic } from '../lib/haptics'
 import { afterRemoving, restTimer, useRestTimer } from '../lib/restTimer'
 import { useNow } from '../lib/useNow'
-import { isPR, nextSet, type ExerciseContext } from '../lib/workouts'
+import { isPR, nextSet, sameSets, stalledFor, type ExerciseContext } from '../lib/workouts'
 import { askRange, confirmDialog, notify, pickDuration } from '../lib/dialog'
 import { exerciseLabel } from '../lib/exercises'
 import { ExerciseTags } from './ExerciseTags'
@@ -34,30 +34,14 @@ interface CardProps {
   onOpenExercise: (exerciseId: string) => void
 }
 
-const WORKING: ReadonlySet<SetType> = new Set(['normal', 'top', 'backoff'])
-
 /** How long a deleted set takes to fold away (see .set-block.leaving). */
 const FOLD_MS = 180
 
-/**
- * Placeholder values for each set: the same kind of set from last time; for working sets, else
- * the working set in the same position (a top set after sets logged as normal, as in Strong);
- * else the set above.
- */
+/** Placeholder values for each set: the same set last time (see sameSets), else the set above. */
 function placeholdersFor(we: WorkoutExercise, previous?: WorkoutExercise): (WorkoutSet | undefined)[] {
-  const prevByType = new Map<SetType, WorkoutSet[]>()
-  for (const s of previous?.sets ?? []) {
-    prevByType.set(s.type, [...(prevByType.get(s.type) ?? []), s])
-  }
-  const prevWorking = (previous?.sets ?? []).filter((s) => WORKING.has(s.type))
-  const seen = new Map<SetType, number>()
-  let working = 0
-  return we.sets.map((s, i) => {
-    const n = seen.get(s.type) ?? 0
-    seen.set(s.type, n + 1)
-    const position = WORKING.has(s.type) ? working++ : -1
-    const fromHistory = prevByType.get(s.type)?.[n] ?? (position >= 0 && !prevByType.has(s.type) ? prevWorking[position] : undefined)
-    if (fromHistory) return fromHistory
+  const fromHistory = sameSets(we.sets, previous?.sets ?? [])
+  return we.sets.map((_, i) => {
+    if (fromHistory[i]) return fromHistory[i]
     const above = we.sets[i - 1]
     return above && (above.weight !== null || above.reps !== null) ? above : undefined
   })
@@ -92,6 +76,8 @@ export function ExerciseCard({
   const folding = leaving && leaving.length === we.sets.length ? leaving.index : null
   const timer = useRestTimer()
   const placeholders = useMemo(() => placeholdersFor(we, previous), [we, previous])
+  // In the workout in progress: sessions in a row without more weight or reps, until a set beats them.
+  const stalled = mode === 'active' ? stalledFor(we.sets, context) : 0
   const labels = setLabels(we.sets)
   const name = exercise ? exerciseLabel(exercise) : 'Ejercicio eliminado'
   const timerKey = (si: number) => (restKey === undefined ? undefined : `${restKey}:${si}`)
@@ -243,6 +229,13 @@ export function ExerciseCard({
           </select>
         </label>
       </div>
+
+      {stalled > 0 && (
+        <p className="stall-note" role="status" aria-label={`Estancado: ${stalled} entrenos sin subir peso ni repeticiones`}>
+          <Icon name="plateau" size={16} />
+          Estancado: {stalled} entrenos sin mejorar
+        </p>
+      )}
 
       {showNote && (
         <SwipeToDelete
