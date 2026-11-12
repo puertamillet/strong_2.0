@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { fmtTick, niceTicks } from '../lib/chartScale'
+import { columnTicks, fmtTick, niceTicks } from '../lib/chartScale'
 
 /** Width of an element, kept in sync with resizes. */
 function useWidth<T extends HTMLElement>() {
@@ -161,19 +161,27 @@ interface BarDatum {
   axis: string
 }
 
+interface ColumnChartProps {
+  data: BarDatum[]
+  /** What is plotted, for the accessible name. */
+  label: string
+  height?: number
+  /** Text of the ticks and of the value on the latest column. */
+  format?: (v: number) => string
+  /** Whole numbers (workouts, sets): ticks only at whole values. */
+  counts?: boolean
+}
+
 /** Single-series column chart: thin columns, value on the latest one, tooltip per column. */
-export function ColumnChart({ data, label, height = 150 }: { data: BarDatum[]; label: string; height?: number }) {
+export function ColumnChart({ data, label, height = 150, format = fmtTick, counts = true }: ColumnChartProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [active, setActive] = useState<number | null>(null)
-  const m = { top: 20, right: 8, bottom: 24, left: 28 }
+  const { top, ticks } = columnTicks(Math.max(0, ...data.map((d) => d.value)), counts)
+  // Room on the left for the longest tick.
+  const m = { top: 20, right: 8, bottom: 24, left: Math.max(28, 12 + 6.5 * Math.max(...ticks.map((t) => format(t).length))) }
   const plotW = Math.max(0, width - m.left - m.right)
   const plotH = height - m.top - m.bottom
   const n = data.length
-  const max = Math.max(1, ...data.map((d) => d.value))
-  const step = max <= 4 ? 1 : max <= 8 ? 2 : Math.ceil(max / 4)
-  const top = Math.ceil(max / step) * step
-  const ticks: number[] = []
-  for (let v = 0; v <= top; v += step) ticks.push(v)
   const band = n ? plotW / n : 0
   const bw = Math.min(24, band * 0.6)
   const sy = (v: number) => m.top + plotH - (v / top) * plotH
@@ -194,7 +202,7 @@ export function ColumnChart({ data, label, height = 150 }: { data: BarDatum[]; l
             <g key={t}>
               <line className="chart-grid" x1={m.left} x2={width - m.right} y1={sy(t)} y2={sy(t)} />
               <text className="chart-axis" x={m.left - 8} y={sy(t)} dy="0.32em" textAnchor="end">
-                {t}
+                {format(t)}
               </text>
             </g>
           ))}
@@ -208,7 +216,7 @@ export function ColumnChart({ data, label, height = 150 }: { data: BarDatum[]; l
                 )}
                 {i === n - 1 && d.value > 0 && (
                   <text className="chart-label" x={cx} y={sy(d.value) - 6} textAnchor="middle">
-                    {d.value}
+                    {format(d.value)}
                   </text>
                 )}
                 <rect

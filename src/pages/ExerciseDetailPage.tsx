@@ -6,7 +6,7 @@ import { ExerciseSheet } from '../components/ExerciseSheet'
 import { ExerciseTags } from '../components/ExerciseTags'
 import { CloseButton, Sheet } from '../components/Sheet'
 import { db, type Exercise } from '../db'
-import { useBodyFigure } from '../lib/bodyFigure'
+import { exercisePaint, useBodyFigure } from '../lib/bodyFigure'
 import { missingFields } from '../lib/exercises'
 import { useCloseSheet, useOpenSheet } from '../lib/sheets'
 import { fmtDate, fmtInt, fmtMediumDate, fmtNumber, fmtSet, fmtShortDate, setLabels } from '../lib/format'
@@ -143,7 +143,7 @@ function AboutTab({ exercise, onEdit }: { exercise: Exercise; onEdit: () => void
       <section className="card about-card">
         {primary.length > 0 && (
           <Suspense fallback={<div className="body-figure" />}>
-            <BodyFigure primary={primary} secondary={secondary} sex={sex} />
+            <BodyFigure sex={sex} paint={exercisePaint(primary, secondary)} />
           </Suspense>
         )}
         <dl className="muscle-list">

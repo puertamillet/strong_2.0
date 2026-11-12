@@ -4,6 +4,7 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 
 ## Funciones
 
+- Panel, la primera pestaña: esta semana (entrenos, series, volumen y tiempo) frente a la media de las anteriores, cada cifra semana a semana en las últimas 12 semanas, y las series semanales de cada músculo en la figura del cuerpo (en cuatro tonos) y en barras, con las 12 semanas de cada músculo al tocarlo. Cuentan las series reales: sin calentamientos y, en los unilaterales, cada par de lados es una serie.
 - Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, top set, back off, drop set, al fallo) y descanso propio en cada serie, elegido con una rueda de minutos y segundos de 10 en 10. Bajo cada serie, una línea a todo lo ancho con su descanso; al marcar la serie se convierte en una barra que se va vaciando. Abajo, el temporizador con −10 y +10 s, y un ping al terminar (con la app en pantalla; en Ajustes se puede probar y hacer que suene aunque el iPhone esté en silencio, lo que pausa la música o el podcast).
 - Ejercicios unilaterales: como en Strong, una serie por lado (el doble de series de las que son). La lateralidad es una clasificación del ejercicio, no parte de su nombre, y sirve para contar las series reales por músculo.
 - Notas fijas en amarillo, siempre visibles con el ejercicio, y rangos de repeticiones por serie en las plantillas.
@@ -12,13 +13,13 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 - Plantillas de rutina: crear, editar y empezar un entreno desde una plantilla. Al terminar, si algo cambió, pregunta como Strong: actualizar solo los valores, actualizar plantilla y valores (dice qué cambia, en rojo si quita ejercicios o series) o mantener la plantilla original. Se importan y exportan en CSV (una fila por serie) desde Ajustes.
 - Catálogo de ejercicios en español (`src/data/ejercicios.csv`): cada uno con su material, lateralidad (bilateral o unilateral), músculos principales y secundarios, y sus nombres en Strong para que las importaciones lo encuentren. El material y la lateralidad se ven en recuadros junto al nombre.
 - Buscador con filtros por material, zona del cuerpo y músculo; las listas y los filtros solo tienen en cuenta los músculos principales. Al crear o editar un ejercicio hay que indicar todos los datos (las notas son opcionales).
-- Ficha de cada ejercicio con una figura del cuerpo, de frente y de espaldas, con los músculos principales y los secundarios en otro tono. La figura es de hombre o de mujer según Ajustes.
+- Ficha de cada ejercicio con una figura del cuerpo, de frente y de espaldas, con los músculos principales y los secundarios en otro tono. La figura (aquí y en el Panel) es de hombre o de mujer según Ajustes.
 - Historial de entrenos (editable).
 - Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez.
 - Copia de seguridad completa en JSON (guardar y restaurar) y exportación a CSV con el formato de Strong.
 
 - Progreso por ejercicio: gráficas de 1RM estimado, peso máximo, volumen y repeticiones (3 meses, 1 año o todo), récords personales y mejor peso por repeticiones, e historial de sesiones.
-- Récords marcados con un trofeo al registrar una serie y en el historial; resumen de entrenos por semana.
+- Récords marcados con un trofeo al registrar una serie y en el historial.
 
 ## Publicación
 

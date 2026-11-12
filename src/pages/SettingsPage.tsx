@@ -265,7 +265,7 @@ export function SettingsPage() {
       <section className="card settings-section">
         <h2>Ejercicios</h2>
         <span className="field-label" id="figure-label">
-          Figura en la ficha del ejercicio
+          Figura del cuerpo
         </span>
         <div className="segmented" role="group" aria-labelledby="figure-label">
           {(
@@ -279,7 +279,10 @@ export function SettingsPage() {
             </button>
           ))}
         </div>
-        <p className="muted small-text">La ficha de cada ejercicio muestra en ella los músculos que trabaja.</p>
+        <p className="muted small-text">
+          En la ficha de cada ejercicio muestra los músculos que trabaja, y en el Panel las series de cada músculo en la
+          semana.
+        </p>
       </section>
 
       <section className="card settings-section">
