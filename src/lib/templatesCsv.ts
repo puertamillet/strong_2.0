@@ -12,18 +12,18 @@ import { catalogEntry, findCatalogExercise } from './catalog'
 import { parseCsv, toCsv } from './csv'
 import { exerciseFinder, exerciseFromCatalog, exerciseKey, exerciseLabel, strongName } from './exercises'
 import { fmtClock, fmtNumber, fmtRange, normalize, parseNum, parseRange, SET_TYPE_NAMES } from './format'
+import { addToNote } from './legacy'
 
 /**
  * Templates as a CSV, one row per set, so they can be written or edited in a spreadsheet and
- * loaded from Ajustes. Exercise-wide values (notes) go on any row of the exercise; consecutive
- * rows of the same template and exercise are one exercise. Unilateral exercises have one row
- * per side, like in Strong.
+ * loaded from Ajustes. The exercise's note goes on any row of the exercise; consecutive rows of
+ * the same template and exercise are one exercise. Unilateral exercises have one row per side,
+ * like in Strong.
  */
 export const TEMPLATE_HEADER = [
   'Plantilla',
   'Exercise Name',
   'Ejercicio',
-  'Nota fija',
   'Nota',
   'Serie',
   'kg',
@@ -38,7 +38,10 @@ export const TEMPLATE_HEADER = [
  */
 const SIDE_COLUMNS = ['Lados', 'Descanso entre lados', 'kg 2º lado', 'Reps 2º lado'] as const
 
-type Column = (typeof TEMPLATE_HEADER)[number] | (typeof SIDE_COLUMNS)[number]
+/** Files made when there were two notes, «Nota fija» and «Nota»: both go into the note. */
+const OLD_NOTE_COLUMN = 'Nota fija'
+
+type Column = (typeof TEMPLATE_HEADER)[number] | (typeof SIDE_COLUMNS)[number] | typeof OLD_NOTE_COLUMN
 
 /** An exercise as written in the file: the names to find it by, plus its template data. */
 export interface ParsedTemplateExercise {
@@ -187,8 +190,10 @@ export function parseTemplatesCsv(text: string): ParsedTemplate[] {
     const exercise = current.entry.exercise
     exercise.sets.push(...sets)
     if (twoSided) current.entry.unilateral = true
-    if (!exercise.stickyNote && get('Nota fija')) exercise.stickyNote = get('Nota fija')
-    if (!exercise.notes && get('Nota')) exercise.notes = get('Nota')
+    for (const text of [get(OLD_NOTE_COLUMN), get('Nota')]) {
+      const note = addToNote(exercise.stickyNote, text)
+      if (note) exercise.stickyNote = note
+    }
   })
 
   for (const t of templates.values()) {
@@ -214,7 +219,6 @@ export function templatesToCsv(templates: Template[], exercises: Map<string, Exe
           exerciseName,
           name,
           i === 0 ? (te.stickyNote ?? '') : '',
-          i === 0 ? (te.notes ?? '') : '',
           SET_TYPE_NAMES[s.type],
           fmtNumber(s.weight),
           fmtNumber(s.reps),

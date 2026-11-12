@@ -1,4 +1,4 @@
-import type { Template, TemplateSet, Workout, WorkoutSet } from '../db'
+import type { Template, TemplateExercise, TemplateSet, Workout, WorkoutExercise, WorkoutSet } from '../db'
 
 /**
  * Two-sided sets, from the version where a unilateral set was one row for both sides. They are
@@ -45,5 +45,45 @@ export function expandWorkoutSides(w: Workout): Workout {
     const sets = expandSides(e.sets)
     return sets === e.sets ? e : { ...e, sets }
   })
+  return exercises.some((e, i) => e !== w.exercises[i]) ? { ...w, exercises } : w
+}
+
+/**
+ * Exercise notes from the version with two kinds: the yellow note, which carries on to the next
+ * time, and a note for the day (in a template, one copied into each workout). Now there is one,
+ * the yellow one, called «Nota».
+ */
+interface TwoNotes {
+  notes?: string
+}
+
+/** The note with `extra` on a new line after it, unless it already says it. */
+export function addToNote(note: string | undefined, extra: string | undefined): string | undefined {
+  const text = extra?.trim()
+  if (!text) return note
+  const current = note?.trim()
+  if (!current) return text
+  return current.includes(text) ? note : `${current}\n${text}`
+}
+
+/** The exercise with its other note added to its note, or the same object if it had none. */
+export function mergeNotes<E extends WorkoutExercise | TemplateExercise>(e: E): E {
+  if (!('notes' in e)) return e
+  const { notes, ...rest } = e as E & TwoNotes
+  const next = rest as E
+  const note = addToNote(next.stickyNote, notes)
+  if (note) next.stickyNote = note
+  return next
+}
+
+/** The template with one note per exercise, or the same object if it had no other notes. */
+export function mergeTemplateNotes(t: Template): Template {
+  const exercises = t.exercises.map(mergeNotes)
+  return exercises.some((e, i) => e !== t.exercises[i]) ? { ...t, exercises } : t
+}
+
+/** The workout with one note per exercise, or the same object if it had no other notes. */
+export function mergeWorkoutNotes(w: Workout): Workout {
+  const exercises = w.exercises.map(mergeNotes)
   return exercises.some((e, i) => e !== w.exercises[i]) ? { ...w, exercises } : w
 }

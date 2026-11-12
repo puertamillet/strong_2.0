@@ -1,6 +1,6 @@
 import { db, type Exercise, type Template, type Workout } from '../db'
 import { strongName } from './exercises'
-import { expandTemplateSides, expandWorkoutSides } from './legacy'
+import { expandTemplateSides, expandWorkoutSides, mergeTemplateNotes, mergeWorkoutNotes } from './legacy'
 import { migrateToCatalog } from './migrations'
 import { parseStrongCsv, workoutsToStrongCsv } from './strong'
 
@@ -77,9 +77,14 @@ export async function restoreBackup(text: string): Promise<{ workouts: number }>
   }
   if (!isBackup(data)) throw new Error('El archivo no es una copia de seguridad de esta app.')
   // Older copies get the same changes the database got when the app updated: one set per side for
-  // unilateral exercises (database version 2) and, before the catalog, its exercises (version 3).
-  const sides = { ...data, workouts: data.workouts.map(expandWorkoutSides), templates: data.templates.map(expandTemplateSides) }
-  const backup = (data.version ?? 1) < 2 ? migrateToCatalog(sides) : sides
+  // unilateral exercises (database version 2), one note per exercise (version 4) and, before the
+  // catalog, its exercises (version 3).
+  const current = {
+    ...data,
+    workouts: data.workouts.map((w) => mergeWorkoutNotes(expandWorkoutSides(w))),
+    templates: data.templates.map((t) => mergeTemplateNotes(expandTemplateSides(t))),
+  }
+  const backup = (data.version ?? 1) < 2 ? migrateToCatalog(current) : current
   await db.transaction('rw', db.exercises, db.workouts, db.templates, async () => {
     await Promise.all([db.exercises.clear(), db.workouts.clear(), db.templates.clear()])
     await db.exercises.bulkAdd(backup.exercises)

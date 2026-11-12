@@ -8,7 +8,7 @@ import {
   type WorkoutSet,
 } from '../db'
 import { catalogExercise } from './catalog'
-import { parseCsv, toCsv } from './csv'
+import { parseCsv } from './csv'
 import { exerciseFinder, exerciseFromCatalog } from './exercises'
 import { normalize, parseNum } from './format'
 
@@ -109,7 +109,8 @@ interface Block {
  * followed it. Unilateral exercises stay as in Strong, one set per side.
  */
 export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong {
-  const rows = parseCsv(text)
+  const quoted: boolean[][] = []
+  const rows = parseCsv(text, quoted)
   if (rows.length < 2) throw new Error('El archivo está vacío.')
 
   const head = rows[0].map((h) => h.trim().toLowerCase())
@@ -147,6 +148,26 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
     return e
   }
 
+  const workoutKey = (row: string[]) => `${get(row, c.date)}|${get(row, c.name) || 'Entreno'}`
+  const isRest = (row: string[]) => /^rest/i.test(get(row, c.order))
+  // Strong writes the Notes field in quotes on the first row of each exercise, even when empty ("").
+  // When the whole file has those marks, they say exactly where each exercise starts: the same
+  // exercise twice in a row, or a warm-up set logged after the others (still the same exercise).
+  const notesQuoted = (r: number) => quoted[r]?.[c.notes] ?? false
+  let marked = c.notes >= 0
+  let firstRows = 0
+  const lastExercise = new Map<string, string>()
+  rows.forEach((row, r) => {
+    if (r === 0 || !get(row, c.date) || !get(row, c.exercise) || isRest(row)) return
+    const key = workoutKey(row)
+    if (lastExercise.get(key) !== get(row, c.exercise)) {
+      firstRows++
+      if (!notesQuoted(r)) marked = false
+    }
+    lastExercise.set(key, get(row, c.exercise))
+  })
+  marked &&= firstRows > 0
+
   const workouts = new Map<string, Workout>()
   const blocks = new Map<string, Block[]>()
   /** Workouts with rest timers: in them, a set with no "Rest Timer" row after it had no rest. */
@@ -157,7 +178,7 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
     const exerciseName = get(row, c.exercise)
     if (!date || !exerciseName) return
     const name = get(row, c.name) || 'Entreno'
-    const key = `${date}|${name}`
+    const key = workoutKey(row)
 
     let w = workouts.get(key)
     if (!w) {
@@ -188,7 +209,7 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
     const order = get(row, c.order)
 
     // Strong writes a "Rest Timer" row after each set with the rest used.
-    if (/^rest/i.test(order)) {
+    if (isRest(row)) {
       const s = parseNum(get(row, c.seconds))
       timed.add(key)
       if (block && block.name === exerciseName && s && s > 0) {
@@ -201,13 +222,14 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
 
     const type = setTypeFromOrder(order)
     const number = type === 'normal' ? Number(order) || 0 : 0
-    // A new block starts on a new exercise, or when the same exercise restarts
-    // (warm-ups again, or set numbers going back), e.g. the same exercise done twice.
+    // A new block starts on a new exercise, or when the same exercise starts again: where Strong
+    // marks it, or else when warm-ups come again or set numbers go back.
     const startsNew =
       !block ||
       block.name !== exerciseName ||
-      (type === 'warmup' && block.hasNonWarmup) ||
-      (type === 'normal' && number > 0 && number <= block.lastNumber)
+      (marked
+        ? notesQuoted(i + 1)
+        : (type === 'warmup' && block.hasNonWarmup) || (type === 'normal' && number > 0 && number <= block.lastNumber))
     if (startsNew) {
       const exercise = exerciseFor(exerciseName)
       block = {
@@ -220,7 +242,9 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
       list.push(block)
       w.exercises.push(block.exercise)
     }
-    if (!block.exercise.notes) block.exercise.notes = cleanNote(get(row, c.notes))
+    // Strong writes the exercise's note (its sticky note) on its first row.
+    const note = cleanNote(get(row, c.notes))
+    if (note && !block.exercise.stickyNote) block.exercise.stickyNote = note
     if (type !== 'warmup') block.hasNonWarmup = true
     if (number) block.lastNumber = number
 
@@ -265,11 +289,19 @@ function strongDate(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
+/** "1h 45m", "2h", "58m" or, under a minute, "45s", as Strong writes it. */
 function strongDuration(ms: number): string {
-  const totalMin = Math.max(0, Math.round(ms / 60000))
+  const seconds = Math.max(0, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const totalMin = Math.round(seconds / 60)
   const h = Math.floor(totalMin / 60)
   const m = totalMin % 60
-  return h ? `${h}h ${m}m` : `${m}m`
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`
+}
+
+/** A text field as Strong writes it: in quotes, with line breaks written as \n. */
+function strongText(text: string): string {
+  return `"${text.replace(/\r?\n/g, '\\n').replace(/"/g, '""')}"`
 }
 
 function decimal(n: number | null | undefined): string {
@@ -277,8 +309,10 @@ function decimal(n: number | null | undefined): string {
 }
 
 /**
- * Export finished workouts in Strong's CSV format, so the data can go to other apps too. As in Strong,
- * a "Rest Timer" row follows each set that had a rest.
+ * Export finished workouts in Strong's CSV format, so the data can go to other apps too. It is
+ * written as Strong writes it, down to the quotes: names in quotes, the exercise's note on its first
+ * row and the workout's on its first, a "Rest Timer" row after each set that had a rest, and no
+ * line break at the end.
  */
 export function workoutsToStrongCsv(workouts: Workout[], exerciseNames: Map<string, string>): string {
   const rows: (string | number)[][] = [[...STRONG_HEADER]]
@@ -296,23 +330,25 @@ export function workoutsToStrongCsv(workouts: Workout[], exerciseNames: Map<stri
           s.type === 'warmup' ? 'W' : s.type === 'drop' ? 'D' : s.type === 'failure' ? 'F' : String(++working)
         rows.push([
           date,
-          w.name,
+          strongText(w.name),
           duration,
-          name,
+          strongText(name),
           order,
           decimal(s.weight),
           decimal(s.reps),
           s.distance ?? 0,
           decimal(s.seconds),
-          firstOfExercise ? (e.notes ?? '') : '',
-          firstOfWorkout ? (w.notes ?? '') : '',
+          firstOfExercise ? strongText(e.stickyNote ?? '') : '',
+          firstOfWorkout ? strongText(w.notes ?? '') : '',
           s.rpe ?? '',
         ])
         firstOfWorkout = false
         firstOfExercise = false
       }
       const rest = (seconds: number | undefined) => {
-        if (seconds) rows.push([date, w.name, duration, name, 'Rest Timer', 0, decimal(0), 0, decimal(seconds), '', '', ''])
+        if (seconds) {
+          rows.push([date, strongText(w.name), duration, strongText(name), 'Rest Timer', 0, decimal(0), 0, decimal(seconds), '', '', ''])
+        }
       }
       for (const s of e.sets) {
         push(s)
@@ -320,5 +356,6 @@ export function workoutsToStrongCsv(workouts: Workout[], exerciseNames: Map<stri
       }
     }
   }
-  return toCsv(rows)
+  // Text fields come quoted already; the rest never needs quotes.
+  return rows.map((r) => r.join(',')).join('\n')
 }

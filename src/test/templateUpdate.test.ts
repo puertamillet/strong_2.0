@@ -28,7 +28,8 @@ describe('updating the template after a workout', () => {
       'Actualiza los descansos. Actualiza los rangos de repeticiones.',
     )
     expect(describeValues(changes({ values: 1 }))).toBe('Actualiza los valores de 1 serie.')
-    expect(describeValues(changes({ values: 4, notes: 1 }))).toBe('Actualiza los valores de 4 series. Actualiza 1 nota fija.')
+    expect(describeValues(changes({ values: 4, notes: 1 }))).toBe('Actualiza los valores de 4 series. Actualiza 1 nota.')
+    expect(describeValues(changes({ notes: 2 }))).toBe('Actualiza 2 notas.')
   })
 
   it('asks nothing if nothing changed', () => {

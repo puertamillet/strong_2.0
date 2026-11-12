@@ -133,7 +133,7 @@ function SummaryExercise({
         <h3>{exercise?.name ?? 'Ejercicio eliminado'}</h3>
         {exercise && <ExerciseTags exercise={exercise} />}
       </button>
-      {we.notes && <p className="muted small-text">{we.notes}</p>}
+      {we.stickyNote && <p className="sticky-note pre-line">{we.stickyNote}</p>}
       <ul className="session-sets">
         {we.sets.map((s, i) => (
           <li key={i}>

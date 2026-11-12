@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { db, type Exercise } from '../db'
+import { db, type Exercise, type Workout } from '../db'
 import { importStrongCsv } from '../lib/backup'
 import { parseCsv } from '../lib/csv'
 import { missingFields, strongName } from '../lib/exercises'
@@ -9,6 +9,7 @@ import {
   parseStrongCsv,
   parseStrongDate,
   parseStrongDuration,
+  STRONG_HEADER,
   workoutsToStrongCsv,
 } from '../lib/strong'
 
@@ -55,6 +56,20 @@ describe('csv', () => {
       ['1\n2', '3,5'],
     ])
   })
+
+  it('says which fields were written in quotes', () => {
+    const quoted: boolean[][] = []
+    expect(parseCsv('a,b,c\n"x","",\n\n1,2,""', quoted)).toEqual([
+      ['a', 'b', 'c'],
+      ['x', '', ''],
+      ['1', '2', ''],
+    ])
+    expect(quoted).toEqual([
+      [false, false, false],
+      [true, true, false],
+      [false, false, true],
+    ])
+  })
 })
 
 describe('Strong CSV import', () => {
@@ -78,7 +93,8 @@ describe('Strong CSV import', () => {
 
     const bench = w.exercises[0]
     expect(bench.exerciseId).toBe('bench-db') // matched to the existing exercise
-    expect(bench.notes).toBe('Primera 5-6, después 6-8')
+    // Strong's note for the exercise (its sticky note) is the exercise's note.
+    expect(bench.stickyNote).toBe('Primera 5-6, después 6-8')
     expect(bench.restSeconds).toBe(180) // most frequent rest timer
     expect(bench.sets.map((s) => s.type)).toEqual(['warmup', 'normal', 'normal', 'drop'])
     // Each set keeps the rest after it; with rest timers in the workout, a set without one had none.
@@ -87,7 +103,7 @@ describe('Strong CSV import', () => {
 
     const [, cross1, cross2, pullUp] = w.exercises
     expect(cross1.sets).toHaveLength(2)
-    expect(cross1.notes).toBe('8-10')
+    expect(cross1.stickyNote).toBe('8-10')
     expect(cross2.sets).toHaveLength(1)
     expect(cross2.exerciseId).toBe(cross1.exerciseId)
     expect(pullUp.sets[0]).toMatchObject({ weight: 0, reps: 8 })
@@ -107,6 +123,28 @@ describe('Strong CSV import', () => {
     expect(missingFields(odd)).toEqual(['material', 'lateralidad', 'músculos principales', 'músculos secundarios'])
   })
 
+  it('starts each exercise where Strong marks it: a warm-up logged at the end stays in it', () => {
+    // Strong quotes the notes on the first row of each exercise, even empty ("").
+    const marked = [
+      STRONG_HEADER.join(','),
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",1,100.0,10.0,0,0.0,"","",',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",2,100.0,9.0,0,0.0,,,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",W,60.0,12.0,0,0.0,,,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",W,50.0,12.0,0,0.0,"",,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",1,90.0,10.0,0,0.0,,,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Extensión",1,40.0,12.0,0,0.0,"Asiento en el 4",,',
+    ].join('\n')
+    const { workouts, newExercises } = parseStrongCsv(marked, [])
+    const types = (w: Workout) => w.exercises.map((e) => e.sets.map((s) => s.type))
+    expect(types(workouts[0])).toEqual([['normal', 'normal', 'warmup'], ['warmup', 'normal'], ['normal']])
+    // And it goes back out just as it came in.
+    expect(workoutsToStrongCsv(workouts, new Map(newExercises.map((e) => [e.id, strongName(e)])))).toBe(marked)
+
+    // Without the marks (a file saved again by another program), the set order decides.
+    const plain = marked.replace(/"/g, '')
+    expect(types(parseStrongCsv(plain, []).workouts[0])).toEqual([['normal', 'normal'], ['warmup', 'warmup', 'normal'], ['normal']])
+  })
+
   it('rejects files that are not Strong exports', () => {
     expect(() => parseStrongCsv('foo,bar\n1,2\n', [])).toThrow(/CSV de Strong/)
     expect(() => parseStrongCsv('', [])).toThrow(/vacío/)
@@ -124,9 +162,64 @@ describe('Strong CSV import', () => {
         start: w.startedAt,
         end: w.endedAt,
         notes: w.notes,
-        ex: w.exercises.map((e) => ({ id: e.exerciseId, notes: e.notes, sets: e.sets })),
+        ex: w.exercises.map((e) => ({ id: e.exerciseId, note: e.stickyNote, sets: e.sets })),
       }))
     expect(shape(again.workouts)).toEqual(shape(workouts))
+  })
+})
+
+describe('Strong CSV export', () => {
+  it('writes the file as Strong does, down to the quotes', () => {
+    const at = new Date(2026, 10, 10, 17, 49, 17).getTime()
+    const workout = (id: string, startedAt: number, minutes: number, name: string, exercises: Workout['exercises']): Workout => ({
+      id,
+      name,
+      startedAt,
+      endedAt: startedAt + minutes * 60_000,
+      source: 'app',
+      exercises,
+      exerciseIds: exercises.map((e) => e.exerciseId),
+    })
+    const csv = workoutsToStrongCsv(
+      [
+        workout('a', at, 120, 'Empuje "A"', [
+          {
+            exerciseId: 'bench',
+            restSeconds: 90,
+            stickyNote: '52 de altura\nDespacio',
+            sets: [
+              { type: 'warmup', weight: 20, reps: 10, done: true, rest: 60 },
+              { type: 'normal', weight: 60.5, reps: 8, done: true },
+            ],
+          },
+          { exerciseId: 'press', restSeconds: 90, sets: [{ type: 'normal', weight: 100, reps: 12, done: true }] },
+        ]),
+        workout('b', at + 86_400_000, 0.75, 'Prueba', [
+          { exerciseId: 'press', restSeconds: 90, sets: [{ type: 'drop', weight: 80, reps: 10, done: true }] },
+        ]),
+      ],
+      new Map([
+        ['bench', 'Bench Press (Barbell)'],
+        ['press', 'Leg Press'],
+      ]),
+    )
+    expect(csv.split('\n')).toEqual([
+      STRONG_HEADER.join(','),
+      '2026-11-10 17:49:17,"Empuje ""A""",2h,"Bench Press (Barbell)",W,20.0,10.0,0,0.0,"52 de altura\\nDespacio","",',
+      '2026-11-10 17:49:17,"Empuje ""A""",2h,"Bench Press (Barbell)",Rest Timer,0,0.0,0,60.0,,,',
+      '2026-11-10 17:49:17,"Empuje ""A""",2h,"Bench Press (Barbell)",1,60.5,8.0,0,0.0,,,',
+      '2026-11-10 17:49:17,"Empuje ""A""",2h,"Leg Press",1,100.0,12.0,0,0.0,"",,',
+      '2026-11-11 17:49:17,"Prueba",45s,"Leg Press",D,80.0,10.0,0,0.0,"","",',
+    ])
+    // And it reads back the same.
+    const back = parseStrongCsv(csv, [
+      { id: 'bench', name: 'Press de banca', strongNames: ['Bench Press (Barbell)'], createdAt: 0 },
+      { id: 'press', name: 'Prensa', strongNames: ['Leg Press'], createdAt: 0 },
+    ])
+    expect(back.workouts.map((w) => [w.name, (w.endedAt! - w.startedAt) / 1000, w.exercises[0].stickyNote])).toEqual([
+      ['Empuje "A"', 7200, '52 de altura\nDespacio'],
+      ['Prueba', 45, undefined],
+    ])
   })
 })
 
@@ -158,5 +251,34 @@ describe.runIf(realCsv)('real Strong export', () => {
     const sets = workouts.reduce((n, w) => n + w.exercises.reduce((m, e) => m + e.sets.length, 0), 0)
     expect(sets).toBe(setRows.length)
     console.log(`${workouts.length} entrenos, ${newExercises.length} ejercicios, ${sets} series`)
+  })
+
+  it('exports it back as Strong wrote it', () => {
+    const text = readFileSync(realCsv!, 'utf8').replace(/^﻿/, '')
+    const { workouts, newExercises } = parseStrongCsv(text, [])
+    const out = workoutsToStrongCsv(workouts, new Map(newExercises.map((e) => [e.id, strongName(e)])))
+    const [a, b] = [text.split('\n'), out.split('\n')]
+    expect(b.length).toBe(a.length)
+    // Only two things may differ: a line break at the end of a note (notes are trimmed), and the
+    // name of an exercise that had two names in Strong (the app keeps one of them). Quotes included.
+    const idOf = new Map(newExercises.flatMap((e) => (e.strongNames ?? []).map((n) => [n, e.id] as const)))
+    let same = 0
+    const unexplained = a.filter((line, i) => {
+      if (line === b[i]) {
+        same++
+        return false
+      }
+      const [qx, qy]: boolean[][][] = [[], []]
+      const [x, y] = [parseCsv(line, qx)[0], parseCsv(b[i], qy)[0]]
+      if (String(qx[0]) !== String(qy[0])) return true
+      return !STRONG_HEADER.every((_, k) => {
+        if (x[k] === y[k]) return true
+        if (k === 3) return idOf.get(x[k]) === idOf.get(y[k])
+        if (k === 9) return x[k].replace(/(\\n)+$/, '') === y[k]
+        return false
+      })
+    })
+    console.log(`exportado: ${same} de ${a.length} líneas idénticas`)
+    expect(unexplained).toEqual([])
   })
 })

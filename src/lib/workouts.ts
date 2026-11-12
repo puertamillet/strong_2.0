@@ -232,7 +232,7 @@ function sameTypeSet<T extends { type: SetType }>(sets: T[] | undefined, like: {
   return sets?.filter((s) => s.type === type)[n]
 }
 
-/** The sticky note of `we` set on `te` (or removed, if `we` has none). */
+/** The note of `we` set on `te` (or removed, if `we` has none). */
 function withStickyNote(te: TemplateExercise, we: WorkoutExercise): TemplateExercise {
   const next = { ...te }
   if (we.stickyNote) next.stickyNote = we.stickyNote
@@ -242,7 +242,7 @@ function withStickyNote(te: TemplateExercise, we: WorkoutExercise): TemplateExer
 
 /**
  * The template with the values of the sets completed in the workout (same exercise, same kind
- * of set, in order) and the sticky notes as they are now. Rests and target reps stay as they were.
+ * of set, in order) and the notes as they are now. Rests and target reps stay as they were.
  */
 export function templateWithValues(t: Template, w: Workout): Template {
   const sources = pairByExercise(t.exercises, w.exercises)
@@ -264,31 +264,24 @@ export function templateWithValues(t: Template, w: Workout): Template {
 
 /**
  * A template's exercise as a workout's: the template's weights and reps (last time's, kept up to
- * date when finishing; empty ones get last time's values as placeholders), rests, targets and notes.
+ * date when finishing; empty ones get last time's values as placeholders), rests, targets and note.
  */
 export function fromTemplateExercise(te: TemplateExercise): WorkoutExercise {
   const we: WorkoutExercise = { exerciseId: te.exerciseId, restSeconds: te.restSeconds, sets: te.sets.map(fromTemplateSet) }
   if (te.stickyNote) we.stickyNote = te.stickyNote
-  if (te.notes) we.notes = te.notes
   return we
 }
 
-/** A template exercise made from a workout exercise: its sets, rests and sticky note (and `notes`, if given). */
-export function templateExercise(e: WorkoutExercise, notes?: string): TemplateExercise {
+/** A template exercise made from a workout exercise: its sets, rests and note. */
+export function templateExercise(e: WorkoutExercise): TemplateExercise {
   const te: TemplateExercise = { exerciseId: e.exerciseId, restSeconds: e.restSeconds, sets: e.sets.map(toTemplateSet) }
   if (e.stickyNote) te.stickyNote = e.stickyNote
-  if (notes) te.notes = notes
   return te
 }
 
-/**
- * The template rebuilt from the workout: its exercises, sets and rests, with today's values.
- * The template's own notes stay with their exercises (today's notes are not template notes).
- */
+/** The template rebuilt from the workout: its exercises, sets, rests and notes, with today's values. */
 export function templateFromWorkout(t: Template, w: Workout): Template {
-  const exercises = w.exercises.filter((e) => e.sets.length > 0)
-  const before = pairByExercise(exercises, t.exercises)
-  return { ...t, exercises: exercises.map((e, i) => templateExercise(e, before[i]?.notes)) }
+  return { ...t, exercises: w.exercises.filter((e) => e.sets.length > 0).map((e) => templateExercise(e)) }
 }
 
 /**
@@ -299,7 +292,7 @@ export function templateFromWorkout(t: Template, w: Workout): Template {
 export interface TemplateChanges {
   /** Template sets whose weight or reps would take today's values. */
   values: number
-  /** Sticky notes changed during the workout. */
+  /** Notes changed during the workout. */
   notes: number
   addedExercises: number
   removedExercises: number
@@ -409,14 +402,14 @@ export function structureChanged(c: TemplateChanges): boolean {
   )
 }
 
-/** True if today's values or sticky notes differ from the template's. */
+/** True if today's values or notes differ from the template's. */
 export function valuesChanged(c: TemplateChanges): boolean {
   return c.values > 0 || c.notes > 0
 }
 
 /**
  * After finishing a workout started from a template, as chosen in the dialog: `values` takes
- * the weights, reps and sticky notes of today; `all` also takes the exercises, sets and rests.
+ * the weights, reps and notes of today; `all` also takes the exercises, sets and rests.
  * `w` is the workout as it was before finishing (with unticked sets).
  */
 export async function syncTemplate(w: Workout, templateId: string, what: 'values' | 'all'): Promise<void> {

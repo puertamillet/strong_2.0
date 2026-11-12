@@ -4,7 +4,8 @@ import type { Exercise, Template } from '../db'
 import { parseTemplatesCsv, planTemplateImport, TEMPLATE_HEADER, templatesToCsv } from '../lib/templatesCsv'
 
 // A spreadsheet export in Spanish: ";" between columns, decimal commas, a note on two lines.
-// The unilateral exercise has a row per side, resting 0:00 between the sides.
+// The unilateral exercise has a row per side, resting 0:00 between the sides. It is from when
+// there were two notes, «Nota fija» and «Nota»: they make one.
 const SAMPLE = [
   'Plantilla;Exercise Name;Ejercicio;Nota fija;Nota;Serie;kg;Reps;Rango;Descanso',
   'Empuje;Bench Press (Barbell);Press de banca;"52 de altura\nBarra recta";Hacerlo despacio;Calentamiento;20;6;;1:00',
@@ -41,8 +42,8 @@ describe('templates CSV', () => {
     expect(empuje.name).toBe('Empuje')
     expect(empuje.exercises.map((e) => e.exerciseName)).toEqual(['Bench Press (Barbell)', 'Unilateral Triceps Extension (Cable)'])
     const bench = empuje.exercises[0].exercise
-    expect(bench.stickyNote).toBe('52 de altura\nBarra recta')
-    expect(bench.notes).toBe('Hacerlo despacio')
+    expect(bench.stickyNote).toBe('52 de altura\nBarra recta\nHacerlo despacio')
+    expect(bench).not.toHaveProperty('notes')
     expect(bench.sets).toEqual([
       { type: 'warmup', weight: 20, reps: 6, rest: 60 },
       { type: 'top', weight: 95, reps: 5, rest: 210, range: [4, 6] },
@@ -120,6 +121,18 @@ describe('templates CSV', () => {
     const plan = planTemplateImport(parseTemplatesCsv(csv), [], [])
     expect(plan.newExercises).toHaveLength(1)
     expect(plan.templates[1].exercises[0].exerciseId).toBe(plan.newExercises[0].id)
+  })
+
+  it('reads the note column of the files it writes, on any row of the exercise', () => {
+    expect(TEMPLATE_HEADER).toContain('Nota')
+    expect(TEMPLATE_HEADER).not.toContain('Nota fija')
+    const csv = [
+      'Plantilla;Ejercicio;Nota;Serie;kg;Reps',
+      'Brazo;Curl de prueba;;Normal;15;10',
+      'Brazo;Curl de prueba;Banco en el 3;Normal;15;10',
+      'Brazo;Curl de prueba;Banco en el 3;Normal;15;10',
+    ].join('\n')
+    expect(parseTemplatesCsv(csv)[0].exercises[0].exercise.stickyNote).toBe('Banco en el 3')
   })
 
   it('exports what it imports', () => {
