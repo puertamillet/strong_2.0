@@ -90,8 +90,7 @@ function TemplateEditor({ id }: { id: string }) {
       ...draft.template,
       name,
       updatedAt: Date.now(),
-      // In the editor, the exercise's note is the template's note (copied into each workout).
-      exercises: draft.exercises.map((e) => templateExercise(e, e.notes)),
+      exercises: draft.exercises.map((e) => templateExercise(e)),
     })
     close()
   }

@@ -259,7 +259,6 @@ describe('rests per set, target reps and notes', () => {
         exerciseId: 'bench',
         restSeconds: 180,
         stickyNote: '52 de altura',
-        notes: 'Hacerlo sentado',
         sets: [
           { type: 'warmup', weight: 20, reps: 6, rest: 60 },
           { type: 'top', weight: 95, reps: 5, rest: 210, range: [4, 6] },
@@ -289,12 +288,12 @@ describe('rests per set, target reps and notes', () => {
 
   it('starts with the rests, targets and notes of the template', async () => {
     const w = (await db.workouts.get(await startFrom(template())))!
-    expect(w.exercises[0]).toMatchObject({ stickyNote: '52 de altura', notes: 'Hacerlo sentado' })
+    expect(w.exercises[0]).toMatchObject({ stickyNote: '52 de altura' })
     expect(w.exercises[0].sets[1]).toEqual({ type: 'top', weight: 95, reps: 5, rest: 210, range: [4, 6], done: false })
     expect(w.exercises[1].sets.map((s) => s.rest)).toEqual([0, 90])
   })
 
-  it('counts a changed rest as a change to the template, and values or sticky notes apart', async () => {
+  it('counts a changed rest as a change to the template, and values or notes apart', async () => {
     const t = template()
     const w = (await db.workouts.get(await startFrom(t)))!
     const changes: [(x: typeof w) => void, boolean, boolean][] = [
@@ -367,11 +366,10 @@ describe('rests per set, target reps and notes', () => {
     expect(t.exercises[1].sets.map((s) => s.range)).toEqual([[9, 12], undefined])
   })
 
-  it('saves values and the sticky note, keeping rests and targets', async () => {
+  it('saves values and the note, keeping rests and targets', async () => {
     const id = await startFrom(template())
     await mutateWorkout(id, (x) => {
       x.exercises[0].stickyNote = '50 de altura'
-      x.exercises[0].notes = 'Me molestaba el hombro'
       Object.assign(x.exercises[0].sets[1], { weight: 97.5, reps: 4, done: true })
       Object.assign(x.exercises[1].sets[0], { weight: 17.5, reps: 10, done: true })
       Object.assign(x.exercises[1].sets[1], { weight: 17.5, reps: 8, done: true })
@@ -379,17 +377,16 @@ describe('rests per set, target reps and notes', () => {
     const w = (await db.workouts.get(id))!
     const next = templateWithValues(template(), w)
     expect(next.exercises[0].stickyNote).toBe('50 de altura')
-    expect(next.exercises[0].notes).toBe('Hacerlo sentado')
     expect(next.exercises[0].sets[1]).toEqual({ type: 'top', weight: 97.5, reps: 4, rest: 210, range: [4, 6] })
     expect(next.exercises[1].sets).toEqual([
       { type: 'normal', weight: 17.5, reps: 10, rest: 0, range: [9, 12] },
       { type: 'normal', weight: 17.5, reps: 8, rest: 90, range: [9, 12] },
     ])
 
-    // Updating the structure too keeps the template's own notes, not today's.
+    // Updating the structure too takes the note as it is now.
     await syncTemplate(w, 'empuje', 'all')
     const t = (await db.templates.get('empuje'))!
-    expect(t.exercises[0]).toMatchObject({ notes: 'Hacerlo sentado', stickyNote: '50 de altura' })
+    expect(t.exercises[0].stickyNote).toBe('50 de altura')
     expect(t.exercises[0].sets[2]).toMatchObject({ type: 'backoff', rest: 180, range: [6, 8] })
   })
 

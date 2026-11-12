@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { Equipment, Laterality, Muscle } from './lib/catalog'
-import { expandTemplateSides, expandWorkoutSides } from './lib/legacy'
+import { expandTemplateSides, expandWorkoutSides, mergeTemplateNotes, mergeWorkoutNotes } from './lib/legacy'
 import { migrateToCatalog } from './lib/migrations'
 
 /** Kinds of set. A top set is the first, heavier working set; the back off sets after it are lighter. */
@@ -27,9 +27,10 @@ export interface WorkoutSet {
 
 export interface WorkoutExercise {
   exerciseId: string
-  /** Notes for this exercise on this day. */
-  notes?: string
-  /** Yellow note always shown with the exercise (machine settings, cues); it belongs to the template. */
+  /**
+   * The exercise's note («Nota»), in yellow and always shown with it (machine settings, cues): it
+   * comes back the next time and goes into the template. Strong's sticky note.
+   */
   stickyNote?: string
   /** Rest for sets without their own, in seconds. */
   restSeconds: number
@@ -80,10 +81,8 @@ export interface TemplateExercise {
   exerciseId: string
   restSeconds: number
   sets: TemplateSet[]
-  /** Yellow note, always shown with the exercise. */
+  /** The exercise's note, in yellow, copied into each workout (see WorkoutExercise). */
   stickyNote?: string
-  /** Note copied into the exercise each time the template is started. */
-  notes?: string
 }
 
 export interface Template {
@@ -138,6 +137,22 @@ db.version(3)
     await exercises.bulkAdd(after.exercises)
     await workouts.bulkPut(after.workouts.filter((w, i) => w !== before.workouts[i]))
     await templates.bulkPut(after.templates.filter((t, i) => t !== before.templates[i]))
+  })
+
+// Version 4: one note per exercise, the yellow one; the note for the day is added to it (see lib/legacy).
+db.version(4)
+  .stores({})
+  .upgrade(async (tx) => {
+    const templates = (await tx.table<Template, string>('templates').toArray()).flatMap((t) => {
+      const next = mergeTemplateNotes(t)
+      return next === t ? [] : [next]
+    })
+    const workouts = (await tx.table<Workout, string>('workouts').toArray()).flatMap((w) => {
+      const next = mergeWorkoutNotes(w)
+      return next === w ? [] : [next]
+    })
+    await tx.table('templates').bulkPut(templates)
+    await tx.table('workouts').bulkPut(workouts)
   })
 
 export const DEFAULT_REST_SECONDS = 120

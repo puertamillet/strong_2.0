@@ -81,7 +81,7 @@ describe('before the catalog', () => {
     old.close()
 
     await db.open()
-    expect(db.verno).toBe(3)
+    expect(db.verno).toBe(4)
     await expectMigrated()
   })
 

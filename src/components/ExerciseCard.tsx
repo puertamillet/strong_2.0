@@ -84,8 +84,7 @@ export function ExerciseCard({
   onOpenExercise,
 }: CardProps) {
   const previous = context?.last
-  const [showNotes, setShowNotes] = useState(Boolean(we.notes))
-  const [showSticky, setShowSticky] = useState(Boolean(we.stickyNote))
+  const [showNote, setShowNote] = useState(Boolean(we.stickyNote))
   /** The set being deleted, while it folds away, until the list without it arrives (`length`: sets before). */
   const [leaving, setLeaving] = useState<{ index: number; length: number } | null>(null)
   // The list without it has arrived: nothing is folding any more.
@@ -105,11 +104,8 @@ export function ExerciseCard({
       case 'down':
         onMove(1)
         break
-      case 'notes':
-        setShowNotes(true)
-        break
-      case 'sticky':
-        setShowSticky(true)
+      case 'note':
+        setShowNote(true)
         break
       case 'rests':
         await editAllRests()
@@ -151,24 +147,29 @@ export function ExerciseCard({
     })
   }
 
+  /** The set's target reps, typed in a dialog: from tapping them, or from the set's menu if it has none. */
+  async function editRange(si: number) {
+    const r = we.sets[si].range
+    const text = await askRange('Rango de repeticiones', r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}-${r[1]}`) : '', `${name} · serie ${labels[si]}`)
+    if (text === null) return
+    const range = parseRange(text)
+    if (range === undefined) {
+      await notify('Rango no válido', 'Escribe las repeticiones como «8» o «6-8».')
+      return
+    }
+    onChange((e) => {
+      if (range) e.sets[si].range = range
+      else delete e.sets[si].range
+    })
+  }
+
   /** The set's menu: its kind, its target reps or deleting it. */
   async function onSetMenu(si: number, value: string) {
     if (value === 'delete') {
       haptic()
       await removeSet(si)
     } else if (value === 'range') {
-      const r = we.sets[si].range
-      const text = await askRange('Rango de repeticiones', r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}-${r[1]}`) : '', `${name} · serie ${labels[si]}`)
-      if (text === null) return
-      const range = parseRange(text)
-      if (range === undefined) {
-        await notify('Rango no válido', 'Escribe las repeticiones como «8» o «6-8».')
-        return
-      }
-      onChange((e) => {
-        if (range) e.sets[si].range = range
-        else delete e.sets[si].range
-      })
+      await editRange(si)
     } else {
       onChange((e) => {
         e.sets[si].type = value as SetType
@@ -234,8 +235,7 @@ export function ExerciseCard({
             <option value="" disabled>
               Opciones
             </option>
-            {!showSticky && <option value="sticky">Añadir nota fija</option>}
-            {!showNotes && <option value="notes">Añadir nota</option>}
+            {!showNote && <option value="note">Añadir nota</option>}
             <option value="rests">Cambiar todos los descansos</option>
             {!isFirst && <option value="up">Mover arriba</option>}
             {!isLast && <option value="down">Mover abajo</option>}
@@ -244,21 +244,21 @@ export function ExerciseCard({
         </label>
       </div>
 
-      {showSticky && (
+      {showNote && (
         <SwipeToDelete
           className="note-swipe"
-          label="Borrar la nota fija"
+          label="Borrar la nota"
           onDelete={() => {
             onChange((x) => {
               delete x.stickyNote
             })
-            setShowSticky(false)
+            setShowNote(false)
           }}
         >
           <textarea
             className="sticky-note"
-            aria-label="Nota fija"
-            placeholder="Nota fija: se ve siempre con el ejercicio"
+            aria-label="Nota"
+            placeholder="Nota: se ve siempre con el ejercicio"
             rows={Math.max(1, (we.stickyNote ?? '').split('\n').length)}
             autoFocus={!we.stickyNote}
             value={we.stickyNote ?? ''}
@@ -271,37 +271,7 @@ export function ExerciseCard({
             }}
             onBlur={(e) => {
               // What is written now: the saved note may not have come back yet.
-              if (!e.target.value.trim()) setShowSticky(false)
-            }}
-          />
-        </SwipeToDelete>
-      )}
-
-      {!showNotes && previous?.notes && mode !== 'template' && (
-        <p className="muted small-text">Nota anterior: {previous.notes}</p>
-      )}
-
-      {showNotes && (
-        <SwipeToDelete
-          className="note-swipe"
-          label="Borrar la nota"
-          onDelete={() => {
-            onChange((x) => {
-              delete x.notes
-            })
-            setShowNotes(false)
-          }}
-        >
-          <textarea
-            className="notes"
-            aria-label="Nota"
-            placeholder={mode === 'template' ? 'Nota: se copia en cada entreno' : (previous?.notes ?? 'Nota')}
-            value={we.notes ?? ''}
-            onChange={(e) => {
-              const v = e.target.value
-              onChange((x) => {
-                x.notes = v || undefined
-              })
+              if (!e.target.value.trim()) setShowNote(false)
             }}
           />
         </SwipeToDelete>
@@ -354,7 +324,15 @@ export function ExerciseCard({
                       ) : (
                         <span className="prev">
                           <span className="prev-values">{fromPrevious ? fmtSet(fromPrevious) : '—'}</span>
-                          {s.range && <span className="prev-range">{fmtRange(s.range)} reps</span>}
+                          {s.range && (
+                            <button
+                              className="prev-range"
+                              aria-label={`Rango de repeticiones de la serie ${labels[si]}: ${fmtRange(s.range)}. Cambiar`}
+                              onClick={() => void editRange(si)}
+                            >
+                              {fmtRange(s.range)} reps
+                            </button>
+                          )}
                         </span>
                       )}
                       <NumInput

@@ -329,17 +329,6 @@ h3 {
   color: var(--accent);
 }
 
-.notes {
-  width: 100%;
-  min-height: 56px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  padding: 8px;
-  font-size: 16px;
-  resize: vertical;
-}
-
 .set-grid {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) 68px 56px 44px;
@@ -417,6 +406,8 @@ h3 {
   flex-direction: column;
   min-width: 0;
   line-height: 1.2;
+  /* Its lines cut themselves short; the range's tap area reaches past it. */
+  overflow: visible;
 }
 
 .prev-values,
@@ -429,6 +420,15 @@ h3 {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--accent);
+}
+
+/* Tapping the target reps changes them: a taller tap area than the line, without moving it. */
+button.prev-range {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 0 10px;
+  margin: -2px 0 -10px;
 }
 
 .range-input {
@@ -516,8 +516,7 @@ h3 {
   touch-action: pan-y;
 }
 
-.note-swipe .sticky-note,
-.note-swipe .notes {
+.note-swipe .sticky-note {
   display: block;
 }
 
@@ -587,13 +586,15 @@ h3 {
 /* Yellow note that is always shown with the exercise. */
 .sticky-note {
   width: 100%;
+  margin: 0;
   border: none;
   border-radius: 10px;
   padding: 8px 10px;
   background: var(--sticky-bg);
   color: var(--sticky-text);
   font: inherit;
-  font-size: 15px;
+  /* 16 px: with less, the iPhone zooms in when writing in it. */
+  font-size: 16px;
   line-height: 1.35;
   resize: none;
   outline: none;
