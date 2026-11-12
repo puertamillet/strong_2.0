@@ -28,8 +28,8 @@ import { seedIfEmpty } from '../seed'
 type Status = { kind: 'idle' } | { kind: 'busy'; text: string } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
 
 const PUSH_HELP: Record<PushStatus, string> = {
-  on: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Con la app abierta también llega, además del ping.',
-  off: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra).',
+  on: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Con la app abierta también llega, además del ping. Si no vibra: Ajustes del iPhone → Notificaciones → Strong 2.0, con los sonidos activados, y Sonidos y vibraciones, con la vibración activada.',
+  off: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Una app web no puede hacer vibrar el iPhone por sí misma: la vibración llega con la notificación.',
   'no-server':
     'Esta versión no tiene servidor de avisos. Los pasos para conectarlo (Cloudflare, gratis) están en el README del repositorio.',
   'not-installed':
@@ -239,7 +239,7 @@ export function SettingsPage() {
         </label>
         <p className="muted small-text">
           {silentModeSoundSupported
-            ? 'Para sonar en silencio, iOS trata el ping como música: si estás escuchando música o un podcast, se pausa al sonar.'
+            ? 'Para sonar en silencio, iOS trata el ping como música: lo que estés escuchando se pausa mientras suena, y justo después la app suelta el audio para que pueda seguir. Sin esta opción, el ping suena por encima sin pausar nada, pero no suena con el iPhone en silencio.'
             : 'Este navegador no permite sonar en modo silencio: si no oyes el ping, quita el modo silencio.'}
         </p>
         <button className="btn full" onClick={signalRestOver}>

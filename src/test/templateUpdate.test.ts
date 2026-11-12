@@ -11,6 +11,7 @@ const none: TemplateChanges = {
   removedSets: 0,
   setTypes: 0,
   rests: false,
+  ranges: false,
   order: false,
 }
 const changes = (c: Partial<TemplateChanges>): TemplateChanges => ({ ...none, ...c })
@@ -22,6 +23,9 @@ describe('updating the template after a workout', () => {
     )
     expect(describeStructure(changes({ addedExercises: 1, removedSets: 2, setTypes: 1, order: true }))).toBe(
       'Añade 1 ejercicio. Quita 2 series. Cambia el tipo de 1 serie. Cambia el orden de los ejercicios.',
+    )
+    expect(describeStructure(changes({ rests: true, ranges: true }))).toBe(
+      'Actualiza los descansos. Actualiza los rangos de repeticiones.',
     )
     expect(describeValues(changes({ values: 1 }))).toBe('Actualiza los valores de 1 serie.')
     expect(describeValues(changes({ values: 4, notes: 1 }))).toBe('Actualiza los valores de 4 series. Actualiza 1 nota fija.')
@@ -53,6 +57,13 @@ describe('updating the template after a workout', () => {
     expect(templateUpdateOptions(changes({ values: 2 })).map((o) => o.label)).toEqual([
       'Actualizar valores',
       'Mantener plantilla original',
+    ])
+  })
+
+  it('offers updating the template when only a target range changed', () => {
+    expect(templateUpdateOptions(changes({ ranges: true })).map((o) => [o.label, o.detail, o.style])).toEqual([
+      ['Actualizar plantilla', 'Actualiza los rangos de repeticiones.', 'primary'],
+      ['Mantener plantilla original', undefined, 'plain'],
     ])
   })
 })
