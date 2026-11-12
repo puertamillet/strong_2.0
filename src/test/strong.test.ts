@@ -56,6 +56,20 @@ describe('csv', () => {
       ['1\n2', '3,5'],
     ])
   })
+
+  it('says which fields were written in quotes', () => {
+    const quoted: boolean[][] = []
+    expect(parseCsv('a,b,c\n"x","",\n\n1,2,""', quoted)).toEqual([
+      ['a', 'b', 'c'],
+      ['x', '', ''],
+      ['1', '2', ''],
+    ])
+    expect(quoted).toEqual([
+      [false, false, false],
+      [true, true, false],
+      [false, false, true],
+    ])
+  })
 })
 
 describe('Strong CSV import', () => {
@@ -107,6 +121,28 @@ describe('Strong CSV import', () => {
     expect(workouts[0].exercises[0].exerciseId).toBe(legPress.id)
     const odd = newExercises.find((e) => e.name === 'Mi Ejercicio Raro')!
     expect(missingFields(odd)).toEqual(['material', 'lateralidad', 'músculos principales', 'músculos secundarios'])
+  })
+
+  it('starts each exercise where Strong marks it: a warm-up logged at the end stays in it', () => {
+    // Strong quotes the notes on the first row of each exercise, even empty ("").
+    const marked = [
+      STRONG_HEADER.join(','),
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",1,100.0,10.0,0,0.0,"","",',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",2,100.0,9.0,0,0.0,,,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",W,60.0,12.0,0,0.0,,,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",W,50.0,12.0,0,0.0,"",,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Prensa",1,90.0,10.0,0,0.0,,,',
+      '2026-11-03 17:16:24,"Pierna",1h 10m,"Mi Extensión",1,40.0,12.0,0,0.0,"Asiento en el 4",,',
+    ].join('\n')
+    const { workouts, newExercises } = parseStrongCsv(marked, [])
+    const types = (w: Workout) => w.exercises.map((e) => e.sets.map((s) => s.type))
+    expect(types(workouts[0])).toEqual([['normal', 'normal', 'warmup'], ['warmup', 'normal'], ['normal']])
+    // And it goes back out just as it came in.
+    expect(workoutsToStrongCsv(workouts, new Map(newExercises.map((e) => [e.id, strongName(e)])))).toBe(marked)
+
+    // Without the marks (a file saved again by another program), the set order decides.
+    const plain = marked.replace(/"/g, '')
+    expect(types(parseStrongCsv(plain, []).workouts[0])).toEqual([['normal', 'normal'], ['warmup', 'warmup', 'normal'], ['normal']])
   })
 
   it('rejects files that are not Strong exports', () => {
@@ -224,7 +260,7 @@ describe.runIf(realCsv)('real Strong export', () => {
     const [a, b] = [text.split('\n'), out.split('\n')]
     expect(b.length).toBe(a.length)
     // Only two things may differ: a line break at the end of a note (notes are trimmed), and the
-    // name of an exercise that had two names in Strong (the app keeps one of them).
+    // name of an exercise that had two names in Strong (the app keeps one of them). Quotes included.
     const idOf = new Map(newExercises.flatMap((e) => (e.strongNames ?? []).map((n) => [n, e.id] as const)))
     let same = 0
     const unexplained = a.filter((line, i) => {
@@ -232,7 +268,9 @@ describe.runIf(realCsv)('real Strong export', () => {
         same++
         return false
       }
-      const [x, y] = [parseCsv(line)[0], parseCsv(b[i])[0]]
+      const [qx, qy]: boolean[][][] = [[], []]
+      const [x, y] = [parseCsv(line, qx)[0], parseCsv(b[i], qy)[0]]
+      if (String(qx[0]) !== String(qy[0])) return true
       return !STRONG_HEADER.every((_, k) => {
         if (x[k] === y[k]) return true
         if (k === 3) return idOf.get(x[k]) === idOf.get(y[k])

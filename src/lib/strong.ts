@@ -109,7 +109,8 @@ interface Block {
  * followed it. Unilateral exercises stay as in Strong, one set per side.
  */
 export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong {
-  const rows = parseCsv(text)
+  const quoted: boolean[][] = []
+  const rows = parseCsv(text, quoted)
   if (rows.length < 2) throw new Error('El archivo está vacío.')
 
   const head = rows[0].map((h) => h.trim().toLowerCase())
@@ -147,6 +148,26 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
     return e
   }
 
+  const workoutKey = (row: string[]) => `${get(row, c.date)}|${get(row, c.name) || 'Entreno'}`
+  const isRest = (row: string[]) => /^rest/i.test(get(row, c.order))
+  // Strong writes the Notes field in quotes on the first row of each exercise, even when empty ("").
+  // When the whole file has those marks, they say exactly where each exercise starts: the same
+  // exercise twice in a row, or a warm-up set logged after the others (still the same exercise).
+  const notesQuoted = (r: number) => quoted[r]?.[c.notes] ?? false
+  let marked = c.notes >= 0
+  let firstRows = 0
+  const lastExercise = new Map<string, string>()
+  rows.forEach((row, r) => {
+    if (r === 0 || !get(row, c.date) || !get(row, c.exercise) || isRest(row)) return
+    const key = workoutKey(row)
+    if (lastExercise.get(key) !== get(row, c.exercise)) {
+      firstRows++
+      if (!notesQuoted(r)) marked = false
+    }
+    lastExercise.set(key, get(row, c.exercise))
+  })
+  marked &&= firstRows > 0
+
   const workouts = new Map<string, Workout>()
   const blocks = new Map<string, Block[]>()
   /** Workouts with rest timers: in them, a set with no "Rest Timer" row after it had no rest. */
@@ -157,7 +178,7 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
     const exerciseName = get(row, c.exercise)
     if (!date || !exerciseName) return
     const name = get(row, c.name) || 'Entreno'
-    const key = `${date}|${name}`
+    const key = workoutKey(row)
 
     let w = workouts.get(key)
     if (!w) {
@@ -188,7 +209,7 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
     const order = get(row, c.order)
 
     // Strong writes a "Rest Timer" row after each set with the rest used.
-    if (/^rest/i.test(order)) {
+    if (isRest(row)) {
       const s = parseNum(get(row, c.seconds))
       timed.add(key)
       if (block && block.name === exerciseName && s && s > 0) {
@@ -201,13 +222,14 @@ export function parseStrongCsv(text: string, existing: Exercise[]): ParsedStrong
 
     const type = setTypeFromOrder(order)
     const number = type === 'normal' ? Number(order) || 0 : 0
-    // A new block starts on a new exercise, or when the same exercise restarts
-    // (warm-ups again, or set numbers going back), e.g. the same exercise done twice.
+    // A new block starts on a new exercise, or when the same exercise starts again: where Strong
+    // marks it, or else when warm-ups come again or set numbers go back.
     const startsNew =
       !block ||
       block.name !== exerciseName ||
-      (type === 'warmup' && block.hasNonWarmup) ||
-      (type === 'normal' && number > 0 && number <= block.lastNumber)
+      (marked
+        ? notesQuoted(i + 1)
+        : (type === 'warmup' && block.hasNonWarmup) || (type === 'normal' && number > 0 && number <= block.lastNumber))
     if (startsNew) {
       const exercise = exerciseFor(exerciseName)
       block = {
