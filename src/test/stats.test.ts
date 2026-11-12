@@ -1,8 +1,17 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { db, type Workout, type WorkoutSet } from '../db'
-import { fmtTick, niceTicks } from '../lib/chartScale'
-import { exerciseSessions, personalRecords, volume, weeklyCounts, weekStart, workoutPRCounts } from '../lib/stats'
+import { db, type Exercise, type Workout, type WorkoutSet } from '../db'
+import { columnTicks, fmtTick, niceTicks } from '../lib/chartScale'
+import {
+  exerciseSessions,
+  personalRecords,
+  realSets,
+  volume,
+  weeklyStats,
+  weekStart,
+  weekStarts,
+  workoutPRCounts,
+} from '../lib/stats'
 import { exerciseContext, isPR } from '../lib/workouts'
 
 const set = (weight: number, reps: number, type: WorkoutSet['type'] = 'normal'): WorkoutSet => ({ type, weight, reps, done: true })
@@ -64,11 +73,66 @@ describe('exercise stats', () => {
     expect(prs.get('d')).toBe(1)
   })
 
-  it('counts workouts per week, Monday first', () => {
+  it('starts weeks on Monday', () => {
     const monday = new Date(2026, 0, 12).getTime() // Monday 12 Jan 2026
     expect(weekStart(new Date(2026, 0, 18, 23).getTime())).toBe(monday)
-    const weeks = weeklyCounts(history, 3, new Date(2026, 0, 14).getTime())
-    expect(weeks.map((w) => w.count)).toEqual([0, 3, 1]) // weeks of 29 Dec, 5 Jan (5, 7, 9), 12 Jan
+    expect(weekStarts(3, new Date(2026, 0, 14).getTime())).toEqual([
+      new Date(2025, 11, 29).getTime(),
+      new Date(2026, 0, 5).getTime(),
+      monday,
+    ])
+  })
+})
+
+describe('weekly stats', () => {
+  const exercises: Exercise[] = [
+    { id: 'bench', name: 'Press de banca', laterality: 'Bilateral', primary: ['Pectoral'], secondary: ['Tríceps'], createdAt: 0 },
+    { id: 'row', name: 'Remo', laterality: 'Unilateral', primary: ['Dorsal ancho', 'Romboides'], secondary: [], createdAt: 0 },
+    { id: 'mine', name: 'Mi ejercicio', createdAt: 0 },
+  ]
+  const day = (date: number, entries: [string, WorkoutSet[]][], minutes = 60): Workout => ({
+    ...workout(`w${date}`, date, []),
+    endedAt: new Date(2026, 0, date, 18).getTime() + minutes * 60_000,
+    exercises: entries.map(([exerciseId, sets]) => ({ exerciseId, restSeconds: 90, sets })),
+    exerciseIds: entries.map(([id]) => id),
+  })
+  const sides = (n: number) => Array.from({ length: n }, () => set(20, 10))
+
+  it('counts real sets: done, without warm-ups, a pair of sides as one', () => {
+    const sets = [set(40, 10, 'warmup'), set(60, 8), set(60, 8), { ...set(60, 8), done: false }]
+    expect(realSets(sets, false)).toBe(2)
+    expect(realSets(sides(6), true)).toBe(3)
+    expect(realSets(sides(5), true)).toBe(3) // one side more on the last set
+  })
+
+  it('adds up each week, and the sets of each primary muscle', () => {
+    const workouts = [
+      day(-11, [['bench', [set(60, 8)]]]), // 20 Dec, before the weeks shown
+      day(5, [
+        ['bench', [set(40, 10, 'warmup'), set(80, 5), set(80, 5), set(80, 5)]],
+        ['row', sides(6)],
+        ['mine', [set(10, 10), set(10, 10)]],
+      ]),
+      day(7, [['bench', [set(85, 5), set(85, 5)]]], 30),
+      { ...day(13, [['bench', [set(90, 3)]]]), endedAt: null }, // in progress
+    ]
+    const [before, week, current] = weeklyStats(workouts, exercises, 3, new Date(2026, 0, 14).getTime())
+    expect(before.workouts).toBe(0)
+    expect(current).toMatchObject({ workouts: 0, sets: 0, volume: 0 })
+    expect(week).toMatchObject({
+      week: new Date(2026, 0, 5).getTime(),
+      workouts: 2,
+      sets: 3 + 3 + 2 + 2,
+      volume: 3 * 400 + 6 * 200 + 2 * 100 + 2 * 425,
+      duration: 90 * 60_000,
+      unassigned: 2,
+    })
+    // Each exercise counts for each of its primary muscles; secondary muscles don't count.
+    expect(Object.entries(week.muscles).filter(([, n]) => n > 0)).toEqual([
+      ['Pectoral', 5],
+      ['Dorsal ancho', 3],
+      ['Romboides', 3],
+    ])
   })
 })
 
@@ -102,5 +166,14 @@ describe('chart scale', () => {
     expect(fmtTick(12500)).toBe('12,5K')
     expect(fmtTick(2500)).toBe('2500')
     expect(fmtTick(97.5)).toBe('97,5')
+  })
+
+  it('counts columns in whole steps from zero', () => {
+    expect(columnTicks(0, true)).toEqual({ top: 1, ticks: [0, 1] })
+    expect(columnTicks(2, true).ticks).toEqual([0, 1, 2])
+    expect(columnTicks(5, true).ticks).toEqual([0, 2, 4, 6])
+    expect(columnTicks(9, true).ticks).toEqual([0, 3, 6, 9])
+    expect(columnTicks(12540, false)).toEqual({ top: 15000, ticks: [0, 5000, 10000, 15000] })
+    expect(columnTicks(5.2, false).ticks).toEqual([0, 2, 4, 6])
   })
 })

@@ -1,5 +1,12 @@
 /** Line icons on a 24px grid, drawn with currentColor so they follow the theme. */
 const paths = {
+  dashboard: (
+    <>
+      <rect x="3.75" y="12" width="4" height="8" rx="1.2" />
+      <rect x="10" y="4" width="4" height="16" rx="1.2" />
+      <rect x="16.25" y="8.5" width="4" height="11.5" rx="1.2" />
+    </>
+  ),
   train: (
     <>
       <rect x="5" y="6.5" width="3" height="11" rx="1.2" />
@@ -32,6 +39,8 @@ const paths = {
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   chevronDown: <path d="M6 9.5l6 6 6-6" />,
   chevronUp: <path d="M6 14.5l6-6 6 6" />,
+  chevronLeft: <path d="M14.5 6l-6 6 6 6" />,
+  chevronRight: <path d="M9.5 6l6 6-6 6" />,
   timer: (
     <>
       <circle cx="12" cy="13.5" r="7" />

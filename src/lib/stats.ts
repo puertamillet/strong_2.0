@@ -1,4 +1,5 @@
-import type { Workout, WorkoutSet } from '../db'
+import type { Exercise, Workout, WorkoutSet } from '../db'
+import { isUnilateral, MUSCLES, type Muscle } from './catalog'
 import { estimated1RM } from './workouts'
 
 type SetLike = Pick<WorkoutSet, 'type' | 'weight' | 'reps'>
@@ -150,19 +151,69 @@ export function weekStart(ts: number): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - day).getTime()
 }
 
-/** Workouts per week for the last `weeks` weeks (oldest first), including the current one. */
-export function weeklyCounts(workouts: Workout[], weeks: number, now: number): { week: number; count: number }[] {
-  const current = weekStart(now)
-  const starts: number[] = []
-  for (let i = weeks - 1; i >= 0; i--) {
-    const d = new Date(current)
-    starts.push(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7 * i).getTime())
-  }
-  const counts = new Map(starts.map((s) => [s, 0]))
+/** Starts of the last `weeks` weeks, oldest first, the current one last. */
+export function weekStarts(weeks: number, now: number): number[] {
+  const d = new Date(weekStart(now))
+  return Array.from({ length: weeks }, (_, i) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7 * (weeks - 1 - i)).getTime(),
+  )
+}
+
+/**
+ * Sets of an exercise in a workout that count: done, without warm-ups. A unilateral exercise is
+ * logged one side at a time, so each pair of sides is one set.
+ */
+export function realSets(sets: Pick<WorkoutSet, 'type' | 'done'>[], unilateral: boolean): number {
+  const n = sets.filter((s) => s.done && s.type !== 'warmup').length
+  return unilateral ? Math.ceil(n / 2) : n
+}
+
+/** What was done in one week. Sets are real sets (see `realSets`). */
+export interface WeekStats {
+  /** Monday 00:00, local time. */
+  week: number
+  workouts: number
+  sets: number
+  /** kg lifted, without warm-ups. */
+  volume: number
+  /** Time training, in ms. */
+  duration: number
+  /** Sets per muscle: an exercise counts for each of its primary muscles. */
+  muscles: Record<Muscle, number>
+  /** Sets of exercises without primary muscles, which count for no muscle. */
+  unassigned: number
+}
+
+/** Figures of each of the last `weeks` weeks (oldest first, the current one last), from finished workouts. */
+export function weeklyStats(workouts: Workout[], exercises: Exercise[], weeks: number, now: number): WeekStats[] {
+  const byId = new Map(exercises.map((e) => [e.id, e]))
+  const stats = weekStarts(weeks, now).map(
+    (week): WeekStats => ({
+      week,
+      workouts: 0,
+      sets: 0,
+      volume: 0,
+      duration: 0,
+      muscles: Object.fromEntries(MUSCLES.map((m) => [m, 0])) as Record<Muscle, number>,
+      unassigned: 0,
+    }),
+  )
+  const byWeek = new Map(stats.map((s) => [s.week, s]))
   for (const w of workouts) {
     if (w.endedAt === null) continue
-    const ws = weekStart(w.startedAt)
-    if (counts.has(ws)) counts.set(ws, counts.get(ws)! + 1)
+    const s = byWeek.get(weekStart(w.startedAt))
+    if (!s) continue
+    s.workouts++
+    s.volume += volume(w)
+    s.duration += Math.max(0, w.endedAt - w.startedAt)
+    for (const we of w.exercises) {
+      const exercise = byId.get(we.exerciseId)
+      const n = realSets(we.sets, isUnilateral(exercise))
+      s.sets += n
+      const muscles = (exercise?.primary ?? []).filter((m) => m in s.muscles)
+      if (!muscles.length) s.unassigned += n
+      for (const m of muscles) s.muscles[m] += n
+    }
   }
-  return starts.map((week) => ({ week, count: counts.get(week)! }))
+  return stats
 }

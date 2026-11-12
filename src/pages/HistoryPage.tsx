@@ -1,20 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { ColumnChart } from '../components/charts'
 import { Icon } from '../components/icons'
 import { db } from '../db'
 import { exerciseLabel } from '../lib/exercises'
 import { useOpenSheet } from '../lib/sheets'
-import { fmtDate, fmtDuration, fmtInt, fmtSet, fmtShortDate } from '../lib/format'
-import { bestSet, volume, weeklyCounts, weekStart, workoutPRCounts } from '../lib/stats'
+import { fmtDate, fmtDuration, fmtInt, fmtSet } from '../lib/format'
+import { bestSet, volume, workoutPRCounts } from '../lib/stats'
 
 const PAGE = 30
-const WEEKS = 12
+
+const count = (n: number) => `${fmtInt(n)} ${n === 1 ? 'entreno' : 'entrenos'}`
 
 export function HistoryPage() {
   const openSheet = useOpenSheet()
   const [limit, setLimit] = useState(PAGE)
-  const [now] = useState(Date.now)
   const workouts = useLiveQuery(
     () =>
       db.workouts
@@ -29,82 +28,18 @@ export function HistoryPage() {
     async () => new Map((await db.exercises.toArray()).map((e) => [e.id, exerciseLabel(e)] as const)),
     [],
   )
-  // Whole-history figures: records per workout, weekly frequency and totals.
+  // Records per workout, from the whole history.
   const summary = useLiveQuery(async () => {
     const all = (await db.workouts.toArray()).filter((w) => w.endedAt !== null)
-    const thisWeek = weekStart(now)
-    const d = new Date(now)
-    const thisMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime()
-    return {
-      total: all.length,
-      week: all.filter((w) => w.startedAt >= thisWeek).length,
-      month: all.filter((w) => w.startedAt >= thisMonth).length,
-      weekly: weeklyCounts(all, WEEKS, now),
-      prs: workoutPRCounts(all),
-    }
-  }, [now])
-
-  const weekly = summary?.weekly ?? []
-  const avg = weekly.length ? weekly.slice(0, -1).reduce((s, w) => s + w.count, 0) / Math.max(1, weekly.length - 1) : 0
+    return { total: all.length, prs: workoutPRCounts(all) }
+  }, [])
 
   return (
     <div className="page">
       <header className="page-header">
         <h1>Historial</h1>
+        {summary && summary.total > 0 && <span className="muted small-text">{count(summary.total)}</span>}
       </header>
-
-      {summary && summary.total > 0 && (
-        <>
-          <div className="stat-row">
-            <div className="card stat">
-              <span className="stat-label">Esta semana</span>
-              <span className="stat-value">{summary.week}</span>
-            </div>
-            <div className="card stat">
-              <span className="stat-label">Este mes</span>
-              <span className="stat-value">{summary.month}</span>
-            </div>
-            <div className="card stat">
-              <span className="stat-label">Total</span>
-              <span className="stat-value">{fmtInt(summary.total)}</span>
-            </div>
-          </div>
-          <section className="card chart-card">
-            <div className="chart-head">
-              <h2>Entrenos por semana</h2>
-              <span className="muted small-text">Media: {avg.toLocaleString('es-ES', { maximumFractionDigits: 1 })}</span>
-            </div>
-            <ColumnChart
-              label={`Entrenos por semana en las últimas ${WEEKS} semanas`}
-              data={weekly.map((w, i) => ({
-                key: w.week,
-                value: w.count,
-                axis: i === weekly.length - 1 ? 'Esta semana' : fmtShortDate(w.week),
-                description: `${i === weekly.length - 1 ? 'Esta semana' : `Semana del ${fmtShortDate(w.week)}`}: ${w.count} ${w.count === 1 ? 'entreno' : 'entrenos'}`,
-              }))}
-            />
-            <details className="table-view">
-              <summary>Ver datos</summary>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Semana</th>
-                    <th className="num">Entrenos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...weekly].reverse().map((w) => (
-                    <tr key={w.week}>
-                      <td>{fmtShortDate(w.week)}</td>
-                      <td className="num">{w.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </details>
-          </section>
-        </>
-      )}
 
       {workouts?.length === 0 && <p className="empty">Todavía no hay entrenos terminados.</p>}
       {workouts?.map((w) => {

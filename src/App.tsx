@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useLayoutEffect } from 'react'
 import { HashRouter, NavLink, Route, Routes, useLocation, type Location } from 'react-router-dom'
 import { DialogHost } from './components/Dialog'
 import { Icon } from './components/icons'
@@ -7,6 +8,7 @@ import { useKeepAwakeSetting, useScreenWakeLock } from './lib/keepAwake'
 import { useRestAlarm } from './lib/restTimer'
 import { sheetBackground, type SheetState } from './lib/sheets'
 import { getActiveWorkout } from './lib/workouts'
+import { DashboardPage } from './pages/DashboardPage'
 import { ExerciseDetailRoute } from './pages/ExerciseDetailPage'
 import { ExercisesPage } from './pages/ExercisesPage'
 import { HistoryPage } from './pages/HistoryPage'
@@ -19,6 +21,10 @@ import { WorkoutSummaryRoute } from './sheets/WorkoutSummarySheet'
 function TabBar() {
   return (
     <nav className="tab-bar">
+      <NavLink to="/panel">
+        <Icon name="dashboard" />
+        Panel
+      </NavLink>
       <NavLink to="/" end>
         <Icon name="train" />
         Entrenar
@@ -49,12 +55,17 @@ function AppRoutes() {
   const background: Location =
     (location.state as SheetState | null)?.background ??
     (sheetTab ? { ...location, pathname: sheetTab, state: null } : location)
+  // Each tab opens at the top, not where the last one was scrolled to (a sheet over it keeps it).
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [background.pathname])
 
   return (
     <>
       <main className="app">
         <Routes location={background}>
           <Route path="/" element={<StartPage />} />
+          <Route path="/panel" element={<DashboardPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/exercises" element={<ExercisesPage />} />
           <Route path="/settings" element={<SettingsPage />} />

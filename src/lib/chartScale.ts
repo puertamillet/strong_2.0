@@ -19,6 +19,18 @@ export function niceTicks(min: number, max: number, count = 4): { lo: number; hi
   return { lo, hi, ticks }
 }
 
+/** Axis for columns that start at zero: round ticks, and whole steps for counts. */
+export function columnTicks(max: number, counts: boolean): { top: number; ticks: number[] } {
+  const nice = niceTicks(0, max > 0 ? max : 1)
+  const step = nice.ticks[1] - nice.ticks[0]
+  if (!counts || Number.isInteger(step)) return { top: nice.hi, ticks: nice.ticks }
+  const whole = Math.ceil(step)
+  const top = Math.ceil(Math.max(max, 1) / whole) * whole
+  const ticks: number[] = []
+  for (let v = 0; v <= top; v += whole) ticks.push(v)
+  return { top, ticks }
+}
+
 export function fmtTick(v: number): string {
   if (Math.abs(v) >= 10_000) return `${fmtNumber(Math.round(v / 100) / 10)}K`
   return Number.isInteger(v) ? fmtInt(v) : fmtNumber(v)
