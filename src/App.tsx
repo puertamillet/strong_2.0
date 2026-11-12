@@ -14,6 +14,7 @@ import { ExercisesPage } from './pages/ExercisesPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StartPage } from './pages/StartPage'
+import { FilmingRoute } from './sheets/FilmingSheet'
 import { TemplateRoute } from './sheets/TemplateSheet'
 import { WorkoutRoute } from './sheets/WorkoutSheet'
 import { WorkoutSummaryRoute } from './sheets/WorkoutSummarySheet'
@@ -46,8 +47,8 @@ function TabBar() {
 }
 
 /**
- * Tabs are pages; workouts, templates, past workouts and exercises open as sheets
- * over the tab they were opened from (or over their default tab after a reload).
+ * Tabs are pages; workouts, templates, past workouts, exercises and the exercises to film this week
+ * open as sheets over the tab they were opened from (or over their default tab after a reload).
  */
 function AppRoutes() {
   const location = useLocation()
@@ -78,6 +79,7 @@ function AppRoutes() {
           <Route path="/templates/:id" element={<TemplateRoute />} />
           <Route path="/history/:id" element={<WorkoutSummaryRoute />} />
           <Route path="/exercises/:id" element={<ExerciseDetailRoute />} />
+          <Route path="/filming" element={<FilmingRoute />} />
         </Routes>
       )}
       <WorkoutBar />

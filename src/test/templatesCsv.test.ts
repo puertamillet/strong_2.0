@@ -137,6 +137,20 @@ describe('templates CSV', () => {
     expect(parseTemplatesCsv(csv)[0].exercises[0].exercise.stickyNote).toBe('Banco en el 3')
   })
 
+  it('reads and writes the set to film', () => {
+    const csv = [
+      'Plantilla;Ejercicio;Serie;kg;Reps;Grabar',
+      'Brazo;Curl de prueba;Normal;15;10;',
+      'Brazo;Curl de prueba;Normal;15;10;Sí',
+    ].join('\n')
+    const [template] = parseTemplatesCsv(csv)
+    expect(template.exercises[0].exercise.sets.map((s) => s.film ?? false)).toEqual([false, true])
+    expect(() => parseTemplatesCsv(csv.replace(';Sí', ';quizá'))).toThrow('Fila 3')
+    const { templates, newExercises } = planTemplateImport([template], [], [])
+    const written = templatesToCsv(templates, new Map(newExercises.map((e) => [e.id, e])))
+    expect(written.trim().split(/\r?\n/).map((row) => row.split(',').at(-1))).toEqual(['Grabar', '', 'sí'])
+  })
+
   it('exports what it imports', () => {
     const exercises: Exercise[] = [
       bench,

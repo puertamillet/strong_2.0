@@ -38,6 +38,12 @@ const paths = {
   ),
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   plateau: <path d="M3.5 18l5-6.5 3.5 3.5h8.5" />,
+  camera: (
+    <>
+      <rect x="2.75" y="6.5" width="13" height="11" rx="2.2" />
+      <path d="M15.75 10.75l5.5-3.25v9l-5.5-3.25" />
+    </>
+  ),
   chevronDown: <path d="M6 9.5l6 6 6-6" />,
   chevronUp: <path d="M6 14.5l6-6 6 6" />,
   chevronLeft: <path d="M14.5 6l-6 6 6 6" />,

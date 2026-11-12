@@ -3,9 +3,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { choose } from '../lib/dialog'
 import { ReorderList } from '../components/ReorderList'
+import { Icon } from '../components/icons'
 import { CloseButton } from '../components/Sheet'
 import { db, type Template } from '../db'
 import { exerciseLabel } from '../lib/exercises'
+import { useFilming } from '../lib/filming'
 import { fmtShortDate, normalize } from '../lib/format'
 import { restTimer } from '../lib/restTimer'
 import { useOpenSheet } from '../lib/sheets'
@@ -23,6 +25,7 @@ export function StartPage() {
     [],
   )
   const [preview, setPreview] = useState<Template | null>(null)
+  const filming = useFilming()
   // Last time each template's routine was done: by template link, or by name (imported workouts).
   const lastUsed = useLiveQuery(async () => {
     const byTemplate = new Map<string, number>()
@@ -74,6 +77,20 @@ export function StartPage() {
 
       <button className="btn primary full" onClick={() => void start()}>
         Empezar entreno vacío
+      </button>
+
+      {/* The exercises to film this week (the Monday reminder opens the same page). */}
+      <button className="card filming-card" onClick={() => openSheet('/filming')}>
+        <Icon name="camera" size={22} />
+        <span className="filming-card-text">
+          <strong>Grabar esta semana</strong>
+          <span className="muted small-text">
+            {filming.length
+              ? filming.map((id) => exerciseNames?.get(id) ?? '?').join(', ')
+              : 'Elige qué ejercicios te toca grabar'}
+          </span>
+        </span>
+        <Icon name="chevronRight" size={18} />
       </button>
 
       {workoutCount === 0 && (

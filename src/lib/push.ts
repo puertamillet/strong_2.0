@@ -1,14 +1,18 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Rest notifications with the iPhone locked or in another app (Web Push).
+ * Notifications with the iPhone locked or in another app (Web Push): the end of each rest, and a
+ * weekly reminder to choose which exercises to film that week.
  *
  * A web app in the background is frozen and can't ring, so when a rest starts the app tells a
  * small server (push-server/, a free Cloudflare Worker) when it ends, and at that moment the
  * server asks Apple to wake the app, which shows a notification (public/push-sw.js). The server
- * only gets this phone's push address and the time; the text is made here, on the phone.
+ * only gets this phone's push address and the time; the text is made here, on the phone. For the
+ * weekly reminder it also gets the day, the time and the time zone, and the subscription's keys
+ * to encrypt the reminder (so the app can tell it from a rest).
  *
- * On iPhone it needs iOS 16.4+, the app added to the home screen and permission to notify.
+ * Both use the same push subscription, which exists while either is on. On iPhone it needs iOS
+ * 16.4+, the app added to the home screen and permission to notify.
  */
 
 /** The push server, set when the app is built (empty: no server, no notifications). */
@@ -22,48 +26,121 @@ const SERVER = (import.meta.env.VITE_PUSH_URL ?? '').replace(/\/+$/, '')
  */
 export type PushStatus = 'on' | 'off' | 'no-server' | 'not-installed' | 'denied'
 
-const KEY = 'strong2.pushEndpoint'
-const listeners = new Set<() => void>()
-let endpoint = readEndpoint()
+/** When the weekly reminder rings: a day of the week (0 = Sunday) and minutes after midnight. */
+export interface ReminderTime {
+  day: number
+  minutes: number
+}
 
-function readEndpoint(): string | null {
+export interface Reminder extends ReminderTime {
+  on: boolean
+  /** When it rings next, as the server said (ms since 1970). */
+  next?: number
+}
+
+/** Monday at 15:00. */
+export const DEFAULT_REMINDER: Reminder = { on: false, day: 1, minutes: 15 * 60 }
+
+/** The push subscription's address, while rest alerts or the reminder are on. */
+const KEY = 'strong2.pushEndpoint'
+/** 'off' when rest alerts are off but the subscription is kept for the reminder. */
+const REST_KEY = 'strong2.restPush'
+const REMINDER_KEY = 'strong2.reminder'
+
+const listeners = new Set<() => void>()
+let endpoint = readItem(KEY)
+let restOff = readItem(REST_KEY) === 'off'
+let reminder = readReminder()
+
+function readItem(key: string): string | null {
   try {
-    return localStorage.getItem(KEY)
+    return localStorage.getItem(key)
   } catch {
     return null
   }
 }
 
-function setEndpoint(next: string | null): void {
-  endpoint = next
+function writeItem(key: string, value: string | null): void {
   try {
-    if (next) localStorage.setItem(KEY, next)
-    else localStorage.removeItem(KEY)
+    if (value === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, value)
   } catch {
     // Storage unavailable; the setting lasts until the app closes.
   }
+}
+
+function readReminder(): Reminder {
+  try {
+    const saved = JSON.parse(readItem(REMINDER_KEY) ?? 'null') as Partial<Reminder> | null
+    if (!saved || typeof saved.day !== 'number' || typeof saved.minutes !== 'number') return DEFAULT_REMINDER
+    return { on: saved.on === true, day: saved.day, minutes: saved.minutes, ...(typeof saved.next === 'number' && { next: saved.next }) }
+  } catch {
+    return DEFAULT_REMINDER
+  }
+}
+
+function changed(): void {
   listeners.forEach((l) => l())
+}
+
+function setEndpoint(next: string | null): void {
+  endpoint = next
+  writeItem(KEY, next)
+  // Nothing uses notifications any more: next time, turning one on starts from scratch.
+  if (next === null) setRestOff(false)
+  changed()
+}
+
+function setRestOff(off: boolean): void {
+  restOff = off
+  writeItem(REST_KEY, off ? 'off' : null)
+  changed()
+}
+
+function setReminder(next: Reminder): void {
+  reminder = next
+  writeItem(REMINDER_KEY, JSON.stringify(next))
+  changed()
 }
 
 function canPush(): boolean {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
-export function pushStatus(): PushStatus {
+function statusFor(on: boolean): PushStatus {
   if (!SERVER) return 'no-server'
   if (!canPush()) return 'not-installed'
   if (Notification.permission === 'denied') return 'denied'
-  return endpoint && Notification.permission === 'granted' ? 'on' : 'off'
+  return on && endpoint && Notification.permission === 'granted' ? 'on' : 'off'
+}
+
+/** Rest alerts. */
+export function pushStatus(): PushStatus {
+  return statusFor(!restOff)
+}
+
+export function reminderStatus(): PushStatus {
+  return statusFor(reminder.on)
+}
+
+function useStore<T>(snapshot: () => T): T {
+  return useSyncExternalStore((l) => {
+    listeners.add(l)
+    return () => listeners.delete(l)
+  }, snapshot)
 }
 
 export function usePushStatus(): PushStatus {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l)
-      return () => listeners.delete(l)
-    },
-    pushStatus,
-  )
+  return useStore(pushStatus)
+}
+
+export function useReminderStatus(): PushStatus {
+  return useStore(reminderStatus)
+}
+
+/** The reminder's time (also while it is off: the one it would ring at). */
+export function useReminder(): Reminder {
+  return useStore(() => reminder)
 }
 
 function fromBase64url(text: string): Uint8Array<ArrayBuffer> {
@@ -78,17 +155,18 @@ function sameKey(a: ArrayBuffer | null, b: Uint8Array): boolean {
 }
 
 /**
- * Turns notifications on: asks for permission (call it from a tap), subscribes this phone with the
- * server's key and remembers its push address. Throws if the server or the browser fails.
+ * This phone's push subscription with the server's key, made if needed: asks for permission
+ * (call it from a tap). A status instead if notifications can't be used. Throws if the server or
+ * the browser fails.
  */
-export async function enablePush(): Promise<PushStatus> {
+async function subscribe(): Promise<PushSubscription | PushStatus> {
   if (!SERVER) return 'no-server'
   if (!canPush()) return 'not-installed'
   // iOS only asks during a tap, so this goes first.
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') {
-    listeners.forEach((l) => l())
-    return pushStatus()
+    changed()
+    return statusFor(true)
   }
   const registration = await navigator.serviceWorker.getRegistration()
   if (!registration) return 'not-installed'
@@ -100,15 +178,12 @@ export async function enablePush(): Promise<PushStatus> {
     await subscription.unsubscribe()
     subscription = null
   }
-  subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
-  setEndpoint(subscription.endpoint)
-  return 'on'
+  return subscription ?? (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }))
 }
 
-export async function disablePush(): Promise<void> {
-  const old = endpoint
+/** Drops the subscription: neither rest alerts nor the reminder use it any more. */
+async function unsubscribe(): Promise<void> {
   setEndpoint(null)
-  if (old) send(old, null)
   try {
     const registration = await navigator.serviceWorker.getRegistration()
     await (await registration?.pushManager.getSubscription())?.unsubscribe()
@@ -117,9 +192,86 @@ export async function disablePush(): Promise<void> {
   }
 }
 
+/** Turns rest alerts on. */
+export async function enablePush(): Promise<PushStatus> {
+  const subscription = await subscribe()
+  if (typeof subscription === 'string') return subscription
+  setRestOff(false)
+  setEndpoint(subscription.endpoint)
+  return 'on'
+}
+
+/** Turns rest alerts off (the weekly reminder, if on, keeps working). */
+export async function disablePush(): Promise<void> {
+  if (endpoint) send(endpoint, null)
+  if (reminder.on && endpoint) setRestOff(true)
+  else await unsubscribe()
+}
+
+/** Tells the server the reminder of this subscription (null: none). Throws if the server fails. */
+async function sendReminder(subscription: { endpoint: string; keys?: Record<string, string> }, time: ReminderTime | null): Promise<number | null> {
+  const weekly = time && { day: time.day, minutes: time.minutes, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+  const res = await fetch(`${SERVER}/weekly`, {
+    method: 'POST',
+    body: JSON.stringify({ endpoint: subscription.endpoint, keys: subscription.keys, weekly }),
+  })
+  if (!res.ok) throw new Error(`El servidor de avisos respondió ${res.status}`)
+  return ((await res.json()) as { next: number | null }).next
+}
+
+function keysOf(subscription: PushSubscription): { endpoint: string; keys?: Record<string, string> } {
+  return { endpoint: subscription.endpoint, keys: subscription.toJSON().keys }
+}
+
+/** Turns the weekly reminder on, or moves it to another time. */
+export async function enableReminder(time: ReminderTime): Promise<PushStatus> {
+  const subscription = await subscribe()
+  if (typeof subscription === 'string') return subscription
+  let next: number | null
+  try {
+    next = await sendReminder(keysOf(subscription), time)
+  } catch (e) {
+    // Nothing else uses the subscription just made.
+    if (!endpoint) await subscription.unsubscribe().catch(() => {})
+    throw e
+  }
+  // Only the reminder: rest alerts stay off, as they were.
+  if (!endpoint) setRestOff(true)
+  setEndpoint(subscription.endpoint)
+  setReminder({ on: true, day: time.day, minutes: time.minutes, ...(next !== null && { next }) })
+  return 'on'
+}
+
+/** Changes the reminder's time: if it is on, the server is told at once. */
+export async function setReminderTime(time: ReminderTime): Promise<void> {
+  if (reminderStatus() === 'on') {
+    await enableReminder(time)
+    return
+  }
+  setReminder({ on: reminder.on, day: time.day, minutes: time.minutes })
+}
+
+/** Asks the server for the reminder now (10 seconds later), to try it. Throws if the server fails. */
+export async function testReminder(): Promise<void> {
+  const registration = await navigator.serviceWorker.getRegistration()
+  const subscription = await registration?.pushManager.getSubscription()
+  if (!subscription) throw new Error('No hay suscripción a los avisos: desactiva y vuelve a activar el aviso.')
+  const res = await fetch(`${SERVER}/weekly/test`, { method: 'POST', body: JSON.stringify(keysOf(subscription)) })
+  if (!res.ok) throw new Error(`El servidor de avisos respondió ${res.status}`)
+}
+
+/** Turns the weekly reminder off, keeping its time. */
+export async function disableReminder(): Promise<void> {
+  const { day, minutes } = reminder
+  setReminder({ on: false, day, minutes })
+  if (endpoint) await sendReminder({ endpoint }, null).catch(() => {})
+  if (restOff) await unsubscribe()
+}
+
 /**
  * When the app opens: the browser may have dropped or renewed the subscription (or the permission
- * may have been taken away in iPhone Settings), so keep the saved address in step with it.
+ * may have been taken away in iPhone Settings), so keep the saved address in step with it. The
+ * reminder is sent again, in case the address or the time zone changed.
  */
 export async function checkPushSubscription(): Promise<void> {
   if (!endpoint || !canPush()) return
@@ -127,11 +279,36 @@ export async function checkPushSubscription(): Promise<void> {
     const registration = await navigator.serviceWorker.getRegistration()
     if (!registration) return
     const subscription = await registration.pushManager.getSubscription()
-    if (Notification.permission !== 'granted' || !subscription) setEndpoint(null)
-    else if (subscription.endpoint !== endpoint) setEndpoint(subscription.endpoint)
+    if (Notification.permission !== 'granted' || !subscription) {
+      // Both are off now: each one is turned on again from Ajustes.
+      setEndpoint(null)
+      if (reminder.on) setReminder({ on: false, day: reminder.day, minutes: reminder.minutes })
+      return
+    }
+    if (subscription.endpoint !== endpoint) {
+      const old = endpoint
+      setEndpoint(subscription.endpoint)
+      if (reminder.on) await sendReminder({ endpoint: old }, null).catch(() => {})
+    }
+    if (reminder.on && SERVER) {
+      const next = await sendReminder(keysOf(subscription), reminder)
+      if (next !== null) setReminder({ ...reminder, next })
+    }
   } catch {
     // Keep what we have.
   }
+}
+
+/**
+ * A tap on the weekly reminder opens its page: the service worker opens the app there, or, if
+ * the app was already open, tells it where to go.
+ */
+export function followNotificationClicks(): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  navigator.serviceWorker.addEventListener('message', (e: MessageEvent) => {
+    const data = e.data as { type?: unknown; hash?: unknown } | null
+    if (data?.type === 'open' && typeof data.hash === 'string' && data.hash.startsWith('#/')) location.hash = data.hash
+  })
 }
 
 function send(to: string, endsAt: number | null): void {
@@ -144,7 +321,7 @@ function send(to: string, endsAt: number | null): void {
   }).catch(() => {})
 }
 
-/** Tells the server when the current rest ends (null: there is none now), if notifications are on. */
+/** Tells the server when the current rest ends (null: there is none now), if rest alerts are on. */
 export function scheduleRestPush(endsAt: number | null): void {
-  if (SERVER && endpoint) send(endpoint, endsAt)
+  if (SERVER && endpoint && !restOff) send(endpoint, endsAt)
 }

@@ -77,20 +77,33 @@ export async function newWorkoutExercises(exerciseIds: string[], excludeWorkoutI
   })
 }
 
-/** An empty set like `s`: same kind, rests and target reps, no values. */
+/** An empty set like `s`: same kind, rests, target reps and mark to film it, no values. */
 function setShape(s: WorkoutSet | TemplateSet): WorkoutSet {
   const set = emptySet(s.type)
   if (s.rest !== undefined) set.rest = s.rest
   if (s.range) set.range = s.range
+  if (s.film) set.film = true
   return set
 }
 
-/** The set added by "Añadir serie": like the last one (after a top set or back off, another back off). */
+/** The set added by "Añadir serie": like the last one (after a top set or back off, another back off), not to film. */
 export function nextSet(we: WorkoutExercise): WorkoutSet {
   const last = we.sets[we.sets.length - 1]
   if (!last) return emptySet()
   const type: SetType = last.type === 'top' || last.type === 'backoff' ? 'backoff' : last.type === 'warmup' ? 'normal' : last.type
-  return { ...setShape(last), type }
+  const { film: _film, ...shape } = setShape(last)
+  return { ...shape, type }
+}
+
+/**
+ * The set to film of an exercise chosen to be filmed that week: the one marked in the template,
+ * else the first that is not a warm-up. -1 if it has no sets.
+ */
+export function filmSetIndex(sets: Pick<WorkoutSet, 'type' | 'film'>[]): number {
+  const marked = sets.findIndex((s) => s.film)
+  if (marked >= 0) return marked
+  const working = sets.findIndex((s) => s.type !== 'warmup')
+  return working >= 0 ? working : sets.length ? 0 : -1
 }
 
 export async function addExercisesToWorkout(id: string, exerciseIds: string[]): Promise<void> {

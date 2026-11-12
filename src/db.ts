@@ -23,6 +23,8 @@ export interface WorkoutSet {
   rest?: number
   /** Target reps, from the template. */
   range?: RepRange
+  /** The set to film in the weeks the exercise is chosen to be filmed, marked in the template. */
+  film?: boolean
 }
 
 export interface WorkoutExercise {
@@ -74,8 +76,11 @@ export interface Exercise {
   createdAt: number
 }
 
-/** A set in a template: its kind, the weight and reps to do (null = take last time's), rests and target reps. */
-export type TemplateSet = Pick<WorkoutSet, 'type' | 'weight' | 'reps' | 'seconds' | 'distance' | 'rest' | 'range'>
+/**
+ * A set in a template: its kind, the weight and reps to do (null = take last time's), rests, target
+ * reps and whether it is the one to film.
+ */
+export type TemplateSet = Pick<WorkoutSet, 'type' | 'weight' | 'reps' | 'seconds' | 'distance' | 'rest' | 'range' | 'film'>
 
 export interface TemplateExercise {
   exerciseId: string

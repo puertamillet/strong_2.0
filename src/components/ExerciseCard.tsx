@@ -4,7 +4,8 @@ import { fmtClock, fmtNumber, fmtRange, fmtRest, fmtSet, parseRange, SET_TYPE_NA
 import { haptic } from '../lib/haptics'
 import { afterRemoving, restTimer, useRestTimer } from '../lib/restTimer'
 import { useNow } from '../lib/useNow'
-import { isPR, nextSet, sameSets, stalledFor, type ExerciseContext } from '../lib/workouts'
+import { useFilming } from '../lib/filming'
+import { filmSetIndex, isPR, nextSet, sameSets, stalledFor, type ExerciseContext } from '../lib/workouts'
 import { askRange, confirmDialog, notify, pickDuration } from '../lib/dialog'
 import { exerciseLabel } from '../lib/exercises'
 import { ExerciseTags } from './ExerciseTags'
@@ -78,6 +79,10 @@ export function ExerciseCard({
   const placeholders = useMemo(() => placeholdersFor(we, previous), [we, previous])
   // In the workout in progress: sessions in a row without more weight or reps, until a set beats them.
   const stalled = mode === 'active' ? stalledFor(we.sets, context) : 0
+  // The set to film: in the workout, if the exercise is to be filmed this week; in the template, the one marked.
+  const filming = useFilming()
+  const filmIndex =
+    mode === 'template' ? we.sets.findIndex((s) => s.film) : mode === 'active' && filming.includes(we.exerciseId) ? filmSetIndex(we.sets) : -1
   const labels = setLabels(we.sets)
   const name = exercise ? exerciseLabel(exercise) : 'Ejercicio eliminado'
   const timerKey = (si: number) => (restKey === undefined ? undefined : `${restKey}:${si}`)
@@ -149,13 +154,20 @@ export function ExerciseCard({
     })
   }
 
-  /** The set's menu: its kind, its target reps or deleting it. */
+  /** The set's menu: its kind, its target reps, whether to film it (in templates) or deleting it. */
   async function onSetMenu(si: number, value: string) {
     if (value === 'delete') {
       haptic()
       await removeSet(si)
     } else if (value === 'range') {
       await editRange(si)
+    } else if (value === 'film') {
+      // One set to film per exercise: marking another one moves the mark.
+      onChange((e) => {
+        const on = !e.sets[si].film
+        for (const set of e.sets) delete set.film
+        if (on) e.sets[si].film = true
+      })
     } else {
       onChange((e) => {
         e.sets[si].type = value as SetType
@@ -286,6 +298,12 @@ export function ExerciseCard({
             <div key={si} className={`set-block ${folding === si ? 'leaving' : ''}`}>
               <div className="set-block-clip">
                 <div className="set-block-body">
+                  {si === filmIndex && (
+                    <p className="film-note" role={mode === 'active' ? 'status' : undefined}>
+                      <Icon name="camera" size={16} />
+                      {mode === 'template' ? 'Serie para grabar' : 'Grábate esta serie'}
+                    </p>
+                  )}
                   <SwipeToDelete label={`Borrar la serie ${labels[si]}`} onDelete={() => removeSet(si)}>
                     <div className={`set-grid set-row ${s.done ? 'done' : ''}`}>
                       <label className={`set-type type-${s.type}`}>
@@ -297,6 +315,7 @@ export function ExerciseCard({
                             </option>
                           ))}
                           {mode !== 'template' && <option value="range">Rango de reps…</option>}
+                          {mode === 'template' && <option value="film">{s.film ? 'No grabar esta serie' : 'Grabar esta serie'}</option>}
                           <option value="delete">Eliminar serie</option>
                         </select>
                       </label>
