@@ -79,7 +79,7 @@ export function WorkoutSummaryRoute() {
               <span className="stat-value">{fmtDuration((workout.endedAt ?? workout.startedAt) - workout.startedAt)}</span>
             </div>
             <div className="card stat">
-              <span className="stat-label">Volumen</span>
+              <span className="stat-label">Tonelaje</span>
               <span className="stat-value">{fmtInt(volume(workout))} kg</span>
             </div>
             <div className="card stat">
