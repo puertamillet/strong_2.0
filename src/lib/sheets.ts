@@ -10,7 +10,7 @@ export interface SheetState {
 }
 
 export function sheetBackground(pathname: string): string | null {
-  if (pathname.startsWith('/workout/') || pathname.startsWith('/templates/')) return '/'
+  if (pathname.startsWith('/workout/') || pathname.startsWith('/templates/') || pathname === '/filming') return '/'
   if (/^\/history\/[^/]+$/.test(pathname)) return '/history'
   if (/^\/exercises\/[^/]+$/.test(pathname)) return '/exercises'
   return null

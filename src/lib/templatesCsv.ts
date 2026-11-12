@@ -31,6 +31,7 @@ export const TEMPLATE_HEADER = [
   'Reps',
   'Rango',
   'Descanso',
+  'Grabar',
 ] as const
 
 /**
@@ -83,6 +84,10 @@ const SET_TYPES: Record<string, SetType> = {
   fallo: 'failure',
   f: 'failure',
 }
+
+/** «Grabar»: the set to film when the exercise is chosen to be filmed that week. */
+const FILM_YES = new Set(['si', 's', 'x', '1', 'yes', 'y'])
+const FILM_NO = new Set(['no', 'n', '0'])
 
 function setType(text: string): SetType | undefined {
   const t = normalize(text.trim())
@@ -150,6 +155,8 @@ export function parseTemplatesCsv(text: string): ParsedTemplate[] {
     if (range === undefined) fail(`rango no válido «${get('Rango')}» (escribe por ejemplo 6-8)`)
     const rest = parseRest(get('Descanso'))
     if (Number.isNaN(rest)) fail(`descanso no válido «${get('Descanso')}» (escribe por ejemplo 1:30)`)
+    const film = get('Grabar')
+    if (film && !FILM_YES.has(normalize(film)) && !FILM_NO.has(normalize(film))) fail(`en Grabar escribe «sí» o nada, no «${film}»`)
     const sidesText = get('Lados')
     if (sidesText && sidesText !== '1' && sidesText !== '2') fail(`lados debe ser 1 o 2, no «${sidesText}»`)
     const sideRest = parseRest(get('Descanso entre lados'))
@@ -160,6 +167,7 @@ export function parseTemplatesCsv(text: string): ParsedTemplate[] {
     const set: TemplateSet = { type: type!, weight, reps }
     if (rest !== undefined) set.rest = rest
     if (range) set.range = range
+    if (FILM_YES.has(normalize(film))) set.film = true
     const twoSided = sidesText === '2'
     const sets: TemplateSet[] = [set]
     if (twoSided) {
@@ -171,6 +179,8 @@ export function parseTemplatesCsv(text: string): ParsedTemplate[] {
       sets.unshift(first)
       set.weight = weight2 ?? weight
       set.reps = reps2 ?? reps
+      // Filmed once: on the first side.
+      delete set.film
     }
 
     const key = normalize(exerciseName || name)
@@ -225,6 +235,7 @@ export function templatesToCsv(templates: Template[], exercises: Map<string, Exe
           fmtNumber(s.reps),
           s.range ? fmtRange(s.range).replace('–', '-') : '',
           fmtClock(s.rest ?? te.restSeconds),
+          s.film ? 'sí' : '',
         ])
       })
     }

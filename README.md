@@ -13,6 +13,7 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 - Una nota por ejercicio, en amarillo: se ve siempre con el ejercicio, vuelve a salir la próxima vez y pasa a la plantilla (es la nota fija de Strong). Y rangos de repeticiones por serie.
 - La pantalla no se apaga sola durante el entreno (opción en Ajustes, activada por defecto).
 - Aviso al acabar el descanso con el iPhone bloqueado o en otra app: una notificación que suena y vibra (en silencio, solo vibra) y dice cuál es la siguiente serie. Necesita un pequeño servidor gratuito en Cloudflare; ver [Avisos con el iPhone bloqueado](#avisos-con-el-iphone-bloqueado).
+- Grabarte: los lunes a las 15:00 (la hora se cambia en Ajustes) llega un aviso para elegir los ejercicios que te toca grabar esa semana; al tocarlo se abre «Grabar esta semana», que también está en Entrenar, con los ejercicios de cada plantilla. En el entreno, la primera serie (que no sea de calentamiento) de cada ejercicio elegido lleva la marca «Grábate esta serie»; en la plantilla se puede elegir otra serie desde el menú de la serie («Grabar esta serie»), y el CSV de plantillas lo guarda en la columna «Grabar». Usa el mismo servidor que el aviso del descanso, y los dos avisos se activan por separado.
 - Plantillas de rutina: crear, editar y empezar un entreno desde una plantilla. Al terminar, si algo cambió, pregunta como Strong: actualizar solo los valores, actualizar plantilla y valores (dice qué cambia, en rojo si quita ejercicios o series) o mantener la plantilla original. Se importan y exportan en CSV (una fila por serie) desde Ajustes. Para cambiar su orden en Entrenar, mantener pulsada una plantilla hasta que se levante y arrastrarla; el CSV sale en ese mismo orden.
 - Catálogo de ejercicios en español (`src/data/ejercicios.csv`): cada uno con su material, lateralidad (bilateral o unilateral), músculos principales y secundarios, y sus nombres en Strong para que las importaciones lo encuentren. El material y la lateralidad se ven en recuadros junto al nombre.
 - Buscador con filtros por material, zona del cuerpo y músculo; las listas y los filtros solo tienen en cuenta los músculos principales. Al crear o editar un ejercicio hay que indicar todos los datos (las notas son opcionales).
@@ -50,6 +51,7 @@ Bueno saber:
 - Si no vibra: en el iPhone, Ajustes → Notificaciones → Strong 2.0 con los sonidos activados, y Ajustes → Sonidos y vibraciones con la vibración activada (también en modo silencio, si lo quieres así).
 - Se ajusta en el iPhone en Ajustes → Notificaciones → Strong 2.0. Si usas un modo de concentración en el gimnasio, permite en él las notificaciones de la app.
 - Si dejan de llegar, desactiva y vuelve a activar el aviso en Ajustes de la app.
+- El aviso de los lunes para grabarte va por el mismo servidor: actívalo en **Ajustes → Grabarte** y pulsa **Probar el aviso de los lunes** para recibirlo en 10 segundos. Sigue la hora de España también cuando cambia la hora en verano e invierno (el servidor guarda la zona horaria del iPhone).
 - Sin los secretos de Cloudflare la app se publica igual, sin esta opción.
 
 ## Desarrollo
@@ -81,8 +83,8 @@ Stack: React + TypeScript + Vite, Dexie (IndexedDB), React Router (HashRouter) y
 - `src/pages/`: pantallas (Entrenar, Entreno, Plantilla, Historial, Ejercicios, Detalle de ejercicio, Ajustes).
 - `src/components/`: piezas reutilizables (selector de ejercicios, temporizador, inputs, gráficas SVG, figura del cuerpo, iconos).
 - `src/data/`: el catálogo de ejercicios y los dibujos de la figura del cuerpo.
-- `public/push-sw.js`: la parte del service worker que muestra la notificación al acabar el descanso.
-- `push-server/`: el servidor de avisos (Cloudflare Worker con un Durable Object que guarda los descansos y su alarma, y firma VAPID de los push).
+- `public/push-sw.js`: la parte del service worker que muestra las notificaciones (fin del descanso y aviso de los lunes) y abre la página al tocar la del lunes.
+- `push-server/`: el servidor de avisos (Cloudflare Worker con un Durable Object que guarda los descansos, los avisos semanales y su alarma, firma VAPID de los push y cifra el mensaje del aviso semanal, RFC 8291).
 
 ## Créditos
 

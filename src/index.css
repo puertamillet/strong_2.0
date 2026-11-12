@@ -19,6 +19,9 @@
   --sticky-text: #3d3200;
   --stall-bg: #ffe8d6;
   --stall-text: #8a3b00;
+  /* The set to film this week (red, as a recording light). */
+  --film-bg: #ffe0e0;
+  --film-text: #b3261e;
   /* Chart series color, validated per mode against the card surface. */
   --chart-1: #0a7cff;
   --pr: #8a5800;
@@ -62,6 +65,8 @@
     --sticky-text: #ffe98a;
     --stall-bg: #47240a;
     --stall-text: #ffb27a;
+    --film-bg: #4d1515;
+    --film-text: #ff9b94;
     --body-fill: #48484d;
     --body-line: #6e6e75;
     --body-hair: #2c2c2e;
@@ -1220,6 +1225,46 @@ button.prev-range {
   gap: 4px;
 }
 
+/* «Grabar esta semana» in Entrenar, and its page. */
+.filming-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+}
+
+.filming-card > .icon:first-child {
+  flex: none;
+  color: var(--film-text);
+}
+
+.filming-card > .icon:last-child {
+  flex: none;
+  color: var(--muted);
+}
+
+.filming-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.filming-intro {
+  margin: 0 4px 10px;
+}
+
+.filming-count {
+  margin: 0 4px 4px;
+  font-weight: 600;
+}
+
+.filming-add {
+  margin-top: 16px;
+}
+
 /* Settings */
 .settings-section {
   display: flex;
@@ -1244,6 +1289,25 @@ button.prev-range {
   height: 22px;
   accent-color: var(--accent);
   flex-shrink: 0;
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.95rem;
+}
+
+.time-input {
+  min-width: 96px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
 }
 
 .app-version {
@@ -2090,5 +2154,25 @@ details.table-view summary {
 }
 
 .stall-note .icon {
+  flex: none;
+}
+
+/* Above the set to film this week (and the one marked in a template). */
+.film-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  width: fit-content;
+  margin: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--film-bg);
+  color: var(--film-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.film-note .icon {
   flex: none;
 }

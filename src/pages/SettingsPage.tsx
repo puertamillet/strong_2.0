@@ -19,7 +19,19 @@ import { setBodyFigure, useBodyFigure } from '../lib/bodyFigure'
 import { exerciseLabel } from '../lib/exercises'
 import { fmtDate, fmtDateTime } from '../lib/format'
 import { setKeepAwake, useKeepAwakeSetting, wakeLockSupported } from '../lib/keepAwake'
-import { disablePush, enablePush, scheduleRestPush, usePushStatus, type PushStatus } from '../lib/push'
+import {
+  disablePush,
+  disableReminder,
+  enablePush,
+  enableReminder,
+  scheduleRestPush,
+  setReminderTime,
+  testReminder,
+  usePushStatus,
+  useReminder,
+  useReminderStatus,
+  type PushStatus,
+} from '../lib/push'
 import { useRestTimer } from '../lib/restTimer'
 import { setSoundInSilentMode, signalRestOver, silentModeSoundSupported, useSoundInSilentMode } from '../lib/sound'
 import { applyTemplateImport, exportTemplatesCsv, prepareTemplateImport } from '../lib/templatesCsv'
@@ -37,6 +49,21 @@ const PUSH_HELP: Record<PushStatus, string> = {
   denied: 'Las notificaciones de la app están desactivadas: actívalas en Ajustes del iPhone → Notificaciones → Strong 2.0.',
 }
 
+/** 900 → "15:00". */
+function clockText(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+}
+
+/** "lunes, 16 de noviembre a las 15:00". */
+function whenText(at: number): string {
+  const d = new Date(at)
+  return `${d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${clockText(d.getHours() * 60 + d.getMinutes())}`
+}
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
 export function SettingsPage() {
   const navigate = useNavigate()
   const counts = useLiveQuery(async () => {
@@ -50,6 +77,11 @@ export function SettingsPage() {
   const keepAwake = useKeepAwakeSetting()
   const soundInSilentMode = useSoundInSilentMode()
   const push = usePushStatus()
+  const reminderStatus = useReminderStatus()
+  const reminder = useReminder()
+  const [reminderBusy, setReminderBusy] = useState(false)
+  /** The time being typed, until it is saved. */
+  const [reminderClock, setReminderClock] = useState<string | null>(null)
   const rest = useRestTimer()
   const bodyFigure = useBodyFigure()
   const [pushBusy, setPushBusy] = useState(false)
@@ -194,6 +226,41 @@ export function SettingsPage() {
     }
   }
 
+  async function toggleReminder(on: boolean) {
+    setReminderBusy(true)
+    try {
+      if (on) await enableReminder(reminder)
+      else await disableReminder()
+    } catch (e) {
+      await notify('No se pudo activar el aviso', errorText(e))
+    } finally {
+      setReminderBusy(false)
+    }
+  }
+
+  async function saveReminderTime(text: string) {
+    const match = /^(\d{1,2}):(\d{2})/.exec(text)
+    const minutes = match ? Number(match[1]) * 60 + Number(match[2]) : NaN
+    if (Number.isNaN(minutes) || minutes >= 24 * 60 || minutes === reminder.minutes) return
+    setReminderBusy(true)
+    try {
+      await setReminderTime({ day: reminder.day, minutes })
+    } catch (e) {
+      await notify('No se pudo cambiar la hora del aviso', errorText(e))
+    } finally {
+      setReminderBusy(false)
+    }
+  }
+
+  async function tryReminder() {
+    try {
+      await testReminder()
+      await notify('Bloquea el iPhone', 'En 10 segundos te llegará el aviso para elegir qué grabar. Tócalo y se abrirá la página.')
+    } catch (e) {
+      await notify('No se pudo probar el aviso', errorText(e))
+    }
+  }
+
   async function testPush() {
     // One rest per phone on the server: a test now would replace the real one.
     if (rest) {
@@ -258,6 +325,42 @@ export function SettingsPage() {
         {push === 'on' && (
           <button className="btn full" onClick={() => void testPush()}>
             Probar el aviso
+          </button>
+        )}
+      </section>
+
+      <section className="card settings-section">
+        <h2>Grabarte</h2>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={reminderStatus === 'on'}
+            disabled={reminderBusy || reminderStatus === 'no-server' || reminderStatus === 'not-installed'}
+            onChange={(e) => void toggleReminder(e.target.checked)}
+          />
+          Aviso los lunes para elegir qué grabar
+        </label>
+        <label className="time-row">
+          Hora del aviso
+          <input
+            type="time"
+            className="time-input"
+            value={reminderClock ?? clockText(reminder.minutes)}
+            disabled={reminderBusy}
+            onChange={(e) => setReminderClock(e.target.value)}
+            onBlur={(e) => void saveReminderTime(e.target.value).finally(() => setReminderClock(null))}
+          />
+        </label>
+        <p className="muted small-text">
+          {reminderStatus === 'on'
+            ? `${reminder.next ? `Próximo aviso: ${whenText(reminder.next)}. ` : ''}Al tocarlo se abre «Grabar esta semana», que también está en Entrenar. En el entreno verás marcada la serie que te toca grabar.`
+            : reminderStatus === 'off'
+              ? 'Cada lunes a esa hora te llega un aviso para elegir los ejercicios que te toca grabar esa semana. En el entreno verás marcada su primera serie, o la que marques en la plantilla.'
+              : PUSH_HELP[reminderStatus]}
+        </p>
+        {reminderStatus === 'on' && (
+          <button className="btn full" onClick={() => void tryReminder()}>
+            Probar el aviso de los lunes
           </button>
         )}
       </section>

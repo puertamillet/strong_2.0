@@ -1,7 +1,8 @@
 /*
- * Rest notifications, added to the service worker that vite-plugin-pwa generates (see
- * vite.config.ts and src/lib/push.ts). The push server sends an empty message when a rest is
- * over; the text is made here, on the phone, from the workout in progress.
+ * Notifications, added to the service worker that vite-plugin-pwa generates (see vite.config.ts
+ * and src/lib/push.ts). The push server sends an empty message when a rest is over; the text is
+ * made here, on the phone, from the workout in progress. The weekly reminder to choose what to
+ * film comes with a message, { type: 'grabar' }, and a tap on it opens that page.
  */
 
 const numberFormat = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2, useGrouping: false })
@@ -50,36 +51,62 @@ async function nextSetText() {
   }
 }
 
+/** The message that came with a push: null for the end of a rest, which comes without one. */
+function messageOf(event) {
+  try {
+    return event.data ? event.data.json() : null
+  } catch {
+    return null
+  }
+}
+
+async function showRestOver() {
+  let next = null
+  try {
+    next = await nextSetText()
+  } catch {
+    // Show the notification anyway.
+  }
+  await self.registration.showNotification('Descanso terminado', {
+    body: next ? `Siguiente: ${next}` : 'A por la siguiente serie',
+    tag: 'descanso',
+    renotify: true,
+    icon: 'pwa-192x192.png',
+    badge: 'favicon-32.png',
+  })
+}
+
+/** The weekly reminder: a tap opens the page to choose the exercises (#/filming). */
+async function showFilmingReminder() {
+  await self.registration.showNotification('Grabar esta semana', {
+    body: 'Elige los ejercicios que te toca grabar: en el entreno verás marcada la serie.',
+    tag: 'grabar',
+    icon: 'pwa-192x192.png',
+    badge: 'favicon-32.png',
+    data: { hash: '#/filming' },
+  })
+}
+
 self.addEventListener('push', (event) => {
-  event.waitUntil(
-    (async () => {
-      let next = null
-      try {
-        next = await nextSetText()
-      } catch {
-        // Show the notification anyway.
-      }
-      // iOS requires a notification for every push: always show one.
-      await self.registration.showNotification('Descanso terminado', {
-        body: next ? `Siguiente: ${next}` : 'A por la siguiente serie',
-        tag: 'descanso',
-        renotify: true,
-        icon: 'pwa-192x192.png',
-        badge: 'favicon-32.png',
-      })
-    })(),
-  )
+  const message = messageOf(event)
+  // iOS requires a notification for every push: always show one.
+  event.waitUntil(message && message.type === 'grabar' ? showFilmingReminder() : showRestOver())
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  const hash = (event.notification.data && event.notification.data.hash) || ''
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       for (const client of windows) {
-        if ('focus' in client) return client.focus()
+        if ('focus' in client) {
+          // The app is open: it goes there itself (followNotificationClicks in src/lib/push.ts).
+          if (hash) client.postMessage({ type: 'open', hash })
+          return client.focus()
+        }
       }
-      return self.clients.openWindow('./')
+      return self.clients.openWindow(`./${hash}`)
     })(),
   )
 })
