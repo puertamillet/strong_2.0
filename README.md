@@ -1,11 +1,11 @@
 # Strong 2.0
 
-App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una web app instalable (PWA): se abre desde Safari, se añade a la pantalla de inicio y funciona sin conexión. Los datos se guardan en el propio dispositivo (IndexedDB).
+App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una web app instalable (PWA): se abre desde Safari, se añade a la pantalla de inicio y funciona sin conexión. Los datos se guardan en el propio dispositivo (IndexedDB). También está como app de iPhone, con avisos nativos: ver [App para iPhone](#app-para-iphone).
 
 ## Funciones
 
 - Panel, la primera pestaña: esta semana (entrenos, series, tonelaje y tiempo) frente a la media de las anteriores, cada cifra semana a semana en las últimas 12 semanas, y las series semanales de cada músculo en la figura del cuerpo (en cuatro tonos) y en barras, con las 12 semanas de cada músculo al tocarlo. Cuentan las series reales: sin calentamientos y, en los unilaterales, cada par de lados es una serie.
-- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, top set, back off, drop set, al fallo) y descanso propio en cada serie, elegido con una rueda de minutos y segundos de 10 en 10. Bajo cada serie, una línea a todo lo ancho con su descanso; al marcar la serie se convierte en una barra que se va vaciando. Abajo, el temporizador con −10 y +10 s, y un ping al terminar (con la app en pantalla). El ping suena por encima de la música o el podcast y nunca los para; por eso, con el iPhone en silencio no suena (iOS solo deja sonar en silencio pausando lo que escuchas, y luego no lo reanuda) y avisa la vibración de la notificación. En Ajustes se puede probar.
+- Entreno activo: series con peso y repeticiones, columna «Anterior» con lo que hiciste la última vez, tipos de serie (calentamiento, top set, back off, drop set, al fallo) y descanso propio en cada serie, elegido con una rueda de minutos y segundos de 10 en 10. Bajo cada serie, una línea a todo lo ancho con su descanso; al marcar la serie se convierte en una barra que se va vaciando. Abajo, el temporizador con −10 y +10 s, y un ping al terminar (con la app en pantalla). El ping suena por encima de la música o el podcast y nunca los para; por eso, con el iPhone en silencio no suena (iOS solo deja sonar en silencio pausando lo que escuchas, y luego no lo reanuda) y avisa la vibración de la notificación (en la [app para iPhone](#app-para-iphone) sí suena en silencio). En Ajustes se puede probar.
 - Durante el entreno se puede cambiar todo lo de la plantilla, como en Strong: deslizar a la izquierda una serie, el descanso de debajo o una nota para borrarlos (un poco y queda el botón «Borrar»; del todo y se borra), añadir series, cambiar su tipo (menú del número de serie) o su rango de repeticiones (tocándolo), sus descansos, las notas y el orden de los ejercicios. Al terminar se ofrece pasar los cambios a la plantilla.
 - Aviso de estancado: si un ejercicio lleva 4 entrenos sin que ninguna serie supere a la misma serie de los 4 entrenos anteriores (con más peso, aunque sea con menos repeticiones, o con más repeticiones), durante el entreno lo dice bajo su nombre, hasta que una serie lo mejora.
 - Respuesta háptica al marcar, añadir y borrar series: en iPhone con iOS 18 o posterior (una web app no puede hacer vibrar el iPhone de otra forma) y en Android.
@@ -64,6 +64,7 @@ npm test         # tests (Vitest)
 STRONG_CSV=/ruta/a/strong.csv npm test   # además valida un export real de Strong
 npm run lint     # oxlint
 npm run build    # compila a dist/
+npx cap sync ios # copia dist/ a la app para iPhone (compilarla necesita un Mac con Xcode; lo hace GitHub)
 ```
 
 Servidor de avisos en local. Los avisos necesitan el service worker, que solo tiene la versión compilada:
@@ -85,6 +86,8 @@ Stack: React + TypeScript + Vite, Dexie (IndexedDB), React Router (HashRouter) y
 - `src/components/`: piezas reutilizables (selector de ejercicios, temporizador, inputs, gráficas SVG, figura del cuerpo, iconos).
 - `src/data/`: el catálogo de ejercicios y los dibujos de la figura del cuerpo.
 - `public/push-sw.js`: la parte del service worker que muestra las notificaciones (fin del descanso y aviso de los lunes) y abre la página al tocar la del lunes.
+- `capacitor.config.ts`, `ios/`: la app para iPhone (Capacitor), con `src/lib/native.ts` y `src/lib/localNotifications.ts` para lo nativo.
+- `native/strong-native/`: el plugin propio de la app para iPhone (el ping y mantener la pantalla encendida, en Swift).
 - `push-server/`: el servidor de avisos (Cloudflare Worker con un Durable Object que guarda los descansos, los avisos semanales y su alarma, firma VAPID de los push y cifra el mensaje del aviso semanal, RFC 8291).
 
 ## Créditos
@@ -94,3 +97,21 @@ Los dibujos de la figura del cuerpo (`src/data/bodyFigure.ts`) vienen de [react-
 ## Instalar en el iPhone
 
 Abre la URL de la app en Safari → botón Compartir → «Añadir a pantalla de inicio». Instalada así, iOS no borra los datos por inactividad.
+
+## App para iPhone
+
+La misma app dentro de una app nativa de iPhone (Capacitor, carpeta `ios/`), para lo que una app web no puede hacer:
+
+- Los avisos al acabar el descanso y el de los lunes son notificaciones locales del propio iPhone: sin servidor, sin «from Strong 2.0», con el ping de la app como sonido, y se quitan solas al volver a la app.
+- El ping suena también con el iPhone en silencio, y la música o el podcast solo bajan un momento de volumen, sin pararse.
+- Vibra al acabar el descanso y al marcar series.
+- Las copias de seguridad y los CSV se guardan con el menú de compartir («Guardar en Archivos»).
+
+GitHub la compila en sus Mac con cada cambio (`.github/workflows/ios.yml`): la prueba en el simulador y, en `main`, publica el `.ipa` sin firmar en la versión [«ios»](../../releases/tag/ios) del repositorio. Se instala con [SideStore](https://sidestore.io), que la firma con tu Apple ID, gratis:
+
+1. Instala SideStore siguiendo [su guía](https://docs.sidestore.io/docs/installation/prerequisites): en Windows, iTunes e iloader en el ordenador y LocalDevVPN en el iPhone.
+2. En SideStore, añade la fuente `https://github.com/puertamillet/strong_2.0/releases/download/ios/fuente-sidestore.json` e instala Strong 2.0 desde ella: así SideStore avisa de cada versión nueva. También vale descargar `Strong2.ipa` en el iPhone y abrirlo con SideStore.
+3. Pasa los datos: en la app web, **Ajustes → Guardar copia completa (JSON)** y «Guardar en Archivos»; en la app para iPhone, **Ajustes → Restaurar una copia…**. Cada app guarda sus propios datos.
+4. La primera vez que se abre pide permiso para las notificaciones. El aviso de los lunes se activa otra vez en **Ajustes → Grabarte** (desactívalo en la app web para no recibirlo dos veces).
+
+Con un Apple ID gratuito la app caduca a los 7 días: SideStore la renueva desde el iPhone, con wifi y LocalDevVPN conectado. Si llega a caducar no se pierden los datos, basta con renovarla. Si se borra la app, sí: haz copias de seguridad.

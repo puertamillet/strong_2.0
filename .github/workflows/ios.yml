@@ -1,9 +1,10 @@
 name: iOS
 
 # The iPhone app (Capacitor, ios/), built on GitHub's Macs, which are free for public repositories.
-# Every push builds it for the simulator, runs it there and keeps a screenshot, and builds it for
-# the iPhone without signing: SideStore signs it with your Apple ID when it installs it. On main,
-# the .ipa is published in the «ios» release, from where the iPhone downloads it.
+# Every push builds it for the simulator and runs it there (a screenshot, and the app's console,
+# which must have no errors), and builds it for the iPhone without signing: SideStore signs it with
+# your Apple ID when it installs it. On main, the .ipa is published in the «ios» release, with a
+# SideStore source that offers each new version as an update (see «App para iPhone» in the README).
 on:
   push:
   workflow_dispatch:
@@ -47,15 +48,31 @@ jobs:
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" build/sim/Build/Products/Debug-iphonesimulator/App.app
-          xcrun simctl launch "$UDID" io.github.puertamillet.strong2
-          sleep 25
           mkdir -p build/shots
+          # The app's console (the native side's messages and the page's) goes to a file while it runs.
+          xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 > build/shots/consola.txt 2>&1 &
+          sleep 30
           xcrun simctl io "$UDID" screenshot build/shots/inicio.png
+          xcrun simctl terminate "$UDID" io.github.puertamillet.strong2 || true
+          wait || true
+          cat build/shots/consola.txt
+          # A small copy of the screenshot in the log too, to look at it without downloading the artifact.
+          sips -Z 700 -s format jpeg -s formatOptions 60 build/shots/inicio.png --out build/shots/inicio.jpg > /dev/null
+          echo "--- captura inicio.jpg (base64) ---"
+          base64 -b 76 -i build/shots/inicio.jpg
+          echo "--- fin de la captura ---"
 
       - uses: actions/upload-artifact@v4
         with:
           name: simulador
           path: build/shots
+
+      - name: Check the app's console
+        run: |
+          # The app's own plugin (native/strong-native) loaded and got the notification sound ready…
+          grep -q "StrongNative: sonido de los avisos listo" build/shots/consola.txt
+          # …and nothing went wrong: the page's errors show as "[error]" (a missing plugin too, see src/lib/native.ts).
+          if grep -E "\[error\]|JS ERROR" build/shots/consola.txt; then exit 1; fi
 
       - name: Build for the iPhone (unsigned)
         run: |
@@ -77,8 +94,48 @@ jobs:
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BUILD: ${{ github.run_number }}
         run: |
+          # The SideStore source: this version, the newest first (SideStore offers it as an update
+          # when it differs from the installed one). AltStore's format, which SideStore reads.
+          python3 - <<'EOF'
+          import datetime, json, os
+          repo, version, build = os.environ["REPO"], os.environ["VERSION"], os.environ["BUILD"]
+          release = f"https://github.com/{repo}/releases/download/ios"
+          today = datetime.date.today().isoformat()
+          ipa = {
+              "downloadURL": f"{release}/Strong2.ipa",
+              "size": os.path.getsize("build/Strong2.ipa"),
+          }
+          source = {
+              "name": "Strong 2.0",
+              "identifier": "io.github.puertamillet.strong2.fuente",
+              "sourceURL": f"{release}/fuente-sidestore.json",
+              "apps": [{
+                  "name": "Strong 2.0",
+                  "bundleIdentifier": "io.github.puertamillet.strong2",
+                  "developerName": "Strong 2.0",
+                  "localizedDescription": "Tus entrenos de gimnasio, sin cuotas.",
+                  "iconURL": f"https://raw.githubusercontent.com/{repo}/main/public/pwa-512x512.png",
+                  # For older versions of SideStore, which read the newest version from here.
+                  "version": version,
+                  "versionDate": today,
+                  **ipa,
+                  "versions": [{
+                      "version": version,
+                      "buildVersion": build,
+                      "date": today,
+                      "minOSVersion": "15.0",
+                      **ipa,
+                  }],
+              }],
+          }
+          with open("build/fuente-sidestore.json", "w") as f:
+              json.dump(source, f, ensure_ascii=False, indent=2)
+          EOF
+          cat build/fuente-sidestore.json
           gh release delete ios --yes --cleanup-tag || true
-          gh release create ios build/Strong2.ipa --target "$GITHUB_SHA" --prerelease \
+          gh release create ios build/Strong2.ipa build/fuente-sidestore.json --target "$GITHUB_SHA" --prerelease \
             --title "App para iPhone $VERSION" \
-            --notes "Ábrelo desde el iPhone, descarga Strong2.ipa e instálalo con SideStore (Mis apps → +). Ver «App para iPhone» en el README."
+            --notes "Para instalarla y recibir las actualizaciones, añade en SideStore la fuente https://github.com/$REPO/releases/download/ios/fuente-sidestore.json (o abre Strong2.ipa desde el iPhone con SideStore). Ver «App para iPhone» en el README."

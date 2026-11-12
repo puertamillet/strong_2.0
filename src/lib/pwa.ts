@@ -1,4 +1,5 @@
 import { registerSW } from 'virtual:pwa-register'
+import { isNativeApp } from './native'
 
 const HOUR = 60 * 60 * 1000
 
@@ -8,8 +9,12 @@ const HOUR = 60 * 60 * 1000
  * iOS keeps home-screen apps alive in the background instead of opening them again,
  * so also look for a new version whenever the app comes back to the front, and
  * every hour while it stays open.
+ *
+ * The iPhone app has no service worker: it comes with its files, and a new version is installed
+ * with SideStore (see the README).
  */
 export function keepAppUpdated(): void {
+  if (isNativeApp) return
   registerSW({
     immediate: true,
     onRegisteredSW(_url, registration) {

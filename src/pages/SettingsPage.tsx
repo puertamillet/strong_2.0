@@ -19,6 +19,7 @@ import { setBodyFigure, useBodyFigure } from '../lib/bodyFigure'
 import { exerciseLabel } from '../lib/exercises'
 import { fmtDate, fmtDateTime } from '../lib/format'
 import { setKeepAwake, useKeepAwakeSetting, wakeLockSupported } from '../lib/keepAwake'
+import { isNativeApp } from '../lib/native'
 import {
   disablePush,
   disableReminder,
@@ -40,7 +41,7 @@ import { seedIfEmpty } from '../seed'
 
 type Status = { kind: 'idle' } | { kind: 'busy'; text: string } | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
 
-const PUSH_HELP: Record<PushStatus, string> = {
+const WEB_PUSH_HELP: Record<PushStatus, string> = {
   on: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Con la app abierta también llega, además del ping, y se quita sola a los pocos segundos; las que lleguen con la app cerrada se quitan al volver a ella. Si no vibra: Ajustes del iPhone → Notificaciones → Strong 2.0, con los sonidos activados, y Sonidos y vibraciones, con la vibración activada.',
   off: 'Al acabar el descanso te llega una notificación aunque el iPhone esté bloqueado o estés en otra app: suena con el tono de las notificaciones y vibra (en silencio, solo vibra). Una app web no puede hacer vibrar el iPhone por sí misma: la vibración llega con la notificación.',
   'no-server':
@@ -49,6 +50,19 @@ const PUSH_HELP: Record<PushStatus, string> = {
     'Para recibir avisos, añade la app a la pantalla de inicio desde Safari (iOS 16.4 o posterior) y ábrela desde allí.',
   denied: 'Las notificaciones de la app están desactivadas: actívalas en Ajustes del iPhone → Notificaciones → Strong 2.0.',
 }
+
+/** The iPhone app's notifications are its own (lib/localNotifications): no server, nothing to install. */
+const NATIVE_PUSH_HELP: Record<PushStatus, string> = {
+  ...WEB_PUSH_HELP,
+  on: 'Al acabar el descanso te llega un aviso aunque el iPhone esté bloqueado o estés en otra app: suena el ping, por encima de la música o el podcast y sin pararlos, y vibra (en silencio, solo vibra). Con la app en pantalla no hay aviso: suena el ping. Los avisos se quitan solos al volver a la app.',
+  off: 'Al acabar el descanso te llega un aviso aunque el iPhone esté bloqueado o estés en otra app: suena el ping, por encima de la música o el podcast y sin pararlos, y vibra.',
+}
+
+const PUSH_HELP = isNativeApp ? NATIVE_PUSH_HELP : WEB_PUSH_HELP
+
+const PING_HELP = isNativeApp
+  ? 'Al acabar el descanso, con la app en pantalla, suena un ping y vibra. Suena también con el iPhone en silencio, y la música o el podcast solo bajan un momento de volumen, sin pararse. Con el iPhone bloqueado o en otra app te avisa la notificación de abajo, con el mismo ping.'
+  : 'Al acabar el descanso suena un ping si la app está en pantalla, por encima de la música o el podcast y sin pararlos. Con el iPhone en silencio el ping no suena (iOS solo deja sonar en silencio pausando lo que escuchas): entonces avisa la vibración de la notificación. Con el iPhone bloqueado o en otra app, iOS congela las apps web y no puede sonar: para eso está el aviso de abajo.'
 
 /** 900 → "15:00". */
 function clockText(minutes: number): string {
@@ -290,12 +304,7 @@ export function SettingsPage() {
         {!wakeLockSupported && (
           <p className="muted small-text">Este navegador no permite mantener la pantalla encendida.</p>
         )}
-        <p className="muted small-text">
-          Al acabar el descanso suena un ping si la app está en pantalla, por encima de la música o el podcast y sin
-          pararlos. Con el iPhone en silencio el ping no suena (iOS solo deja sonar en silencio pausando lo que
-          escuchas): entonces avisa la vibración de la notificación. Con el iPhone bloqueado o en otra app, iOS congela
-          las apps web y no puede sonar: para eso está el aviso de abajo.
-        </p>
+        <p className="muted small-text">{PING_HELP}</p>
         <button className="btn full" onClick={signalRestOver}>
           Probar el sonido
         </button>
@@ -481,9 +490,12 @@ export function SettingsPage() {
         <p className="muted small-text">
           {counts?.workouts ?? 0} entrenos · {counts?.templates ?? 0} plantillas · {counts?.exercises ?? 0} ejercicios
           <br />
-          {persisted === true && 'Almacenamiento persistente activado: Safari no borrará los datos.'}
-          {persisted === false &&
-            'Almacenamiento no persistente: instala la app en la pantalla de inicio y haz copias de seguridad.'}
+          {isNativeApp
+            ? 'Los datos se guardan en esta app: si la borras del iPhone, se borran con ella.'
+            : persisted === true
+              ? 'Almacenamiento persistente activado: Safari no borrará los datos.'
+              : persisted === false &&
+                'Almacenamiento no persistente: instala la app en la pantalla de inicio y haz copias de seguridad.'}
         </p>
         <button className="btn danger full" disabled={busy} onClick={onDeleteAll}>
           Borrar todos los datos
@@ -491,7 +503,8 @@ export function SettingsPage() {
       </section>
 
       <p className="app-version muted small-text">
-        Versión {__APP_VERSION__} · {fmtDateTime(Date.parse(__BUILD_TIME__))}
+        Versión {__APP_VERSION__}
+        {isNativeApp && ' · app para iPhone'} · {fmtDateTime(Date.parse(__BUILD_TIME__))}
       </p>
     </div>
   )

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { pingWav } from './src/lib/ping.ts'
 
 // Short commit id of the build, shown in Ajustes to tell which version is installed.
 function commitId(): string {
@@ -23,6 +24,13 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    {
+      // The end-of-rest ping as a sound file, for the iPhone app (see src/lib/ping.ts).
+      name: 'ping-wav',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'sounds/ping.wav', source: pingWav() })
+      },
+    },
     VitePWA({
       // New versions install and take over at once (skipWaiting + clientsClaim). The service worker is
       // registered from src/lib/pwa.ts, which also looks for updates when the app comes back to the front.

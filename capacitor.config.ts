@@ -11,6 +11,8 @@ const config: CapacitorConfig = {
   ios: {
     // The page already leaves room for the status bar and the home indicator (safe-area CSS).
     contentInset: 'never',
+    // A long press on a link (the tabs) doesn't open a preview of the page, as in a native app.
+    allowsLinkPreview: false,
   },
 }
 
