@@ -87,13 +87,15 @@ describe('templates CSV', () => {
 
   it('replaces templates with the same name and creates missing exercises from the catalog', () => {
     const exercises: Exercise[] = [bench]
-    const existing: Template[] = [{ id: 'old', name: 'empuje', updatedAt: 0, exercises: [] }]
+    const existing: Template[] = [{ id: 'old', name: 'empuje', updatedAt: 0, exercises: [], order: 3 }]
     const plan = planTemplateImport(parseTemplatesCsv(SAMPLE), existing, exercises)
     expect(plan.replaced).toEqual(['empuje'])
     expect(plan.templates.map((t) => [t.id === 'old', t.name])).toEqual([
       [true, 'Empuje'],
       [false, 'Pierna'],
     ])
+    // The replaced one keeps its place in the list; a new one has none yet.
+    expect(plan.templates.map((t) => t.order)).toEqual([3, undefined])
     // Found by its name in Strong.
     expect(plan.templates[0].exercises[0].exerciseId).toBe('bench')
     // By its name in Strong, or by the Spanish one when only one catalog exercise has it.

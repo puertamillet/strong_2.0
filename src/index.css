@@ -265,6 +265,35 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: 100%;
+}
+
+/* Lists sorted by holding an item and dragging it (ReorderList). */
+.reorder-item {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.reordering .reorder-item {
+  transition: transform 0.18s ease;
+}
+
+.reordering .reorder-item.lifted {
+  position: relative;
+  z-index: 2;
+  transition: none;
+}
+
+.reorder-item.lifted > * {
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+}
+
+/* On black a shadow doesn't show: the lifted item turns lighter, as on iOS. */
+@media (prefers-color-scheme: dark) {
+  .reorder-item.lifted > * {
+    background: var(--surface-2);
+  }
 }
 
 .template-exercises {

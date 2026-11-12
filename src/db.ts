@@ -91,6 +91,8 @@ export interface Template {
   notes?: string
   exercises: TemplateExercise[]
   updatedAt: number
+  /** Place in the list, once the templates have been put in order by dragging them (0 first). */
+  order?: number
 }
 
 export const db = new Dexie('strong2') as Dexie & {
