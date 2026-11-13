@@ -1,25 +1,51 @@
 /**
  * The sound at the end of a rest: a double «ding», two strikes of a small metal bell 0.2 s apart,
- * like the one Strong plays. Each strike is a handful of sines at the bell's inharmonic partials
- * (measured from a recording of that sound): the high ones give the bright, metallic attack and
- * fade quickly, and the one at 2174 Hz swells for a moment and rings on the longest.
+ * like the one Strong plays. Each strike is a few dozen sines at the bell's inharmonic partials,
+ * measured from a recording of that sound and fitted to its spectrogram: a low body from 588 to
+ * 1246 Hz, which gives it weight; the bright partials up to 15 kHz, which start sharply and fade
+ * fast, some in close pairs that shimmer; and the one at 2174 Hz, which swells for a moment and
+ * rings on the longest.
  *
  * The web app plays it with Web Audio (sound.ts). The iPhone app plays it from a sound file made
  * from the same numbers (pingWav, which vite.config.ts puts in the build as sounds/ping.wav), and
  * its rest notifications ring with that file too (native/strong-native).
  */
 
-/** [frequency in Hz, level in dB below the loudest partial, fade in dB per second, attack in seconds] */
+/**
+ * [frequency in Hz, relative level in dB, fade in dB per second, attack in seconds]. Two partials
+ * a hertz or two apart are one that already sounds at the strike (the fast one) and then swells
+ * (the slow one).
+ */
 export const PARTIALS: readonly (readonly [number, number, number, number])[] = [
-  [1870, -2, 96, 0.002],
-  [2174, -11, 30, 0.15],
-  [2474, -16, 30, 0.15],
-  [3308, -7, 52, 0.002],
-  [3891, -9, 80, 0.002],
-  [4294, -9.5, 45, 0.002],
-  [4636, -6.5, 130, 0.002],
-  [6519, 0, 110, 0.002],
-  [9113, -6, 112, 0.002],
+  [587.6, -27.5, 27, 0.09],
+  [900, -15.5, 105, 0.0003],
+  [1174.2, -31.5, 34, 0.21],
+  [1246.1, -23.5, 33, 0.01],
+  [1871, -2.5, 82, 0.0003],
+  [2173.5, -11, 44, 0.25],
+  [2174.5, -22.5, 112, 0.0003],
+  [2474.1, -17, 40, 0.14],
+  [2476, -30, 100, 0.0003],
+  [3308.7, -7, 63, 0.04],
+  [3667.5, -7.5, 276, 0.0003],
+  [3726.2, -17.5, 91, 0.0003],
+  [3890.8, -7.5, 80, 0.0003],
+  [4295, -13.5, 48, 0.12],
+  [4431.6, -9, 128, 0.0003],
+  [4635.7, -6, 106, 0.0003],
+  [5356.6, -21, 78, 0.0003],
+  [6132.9, -21, 99, 0.0003],
+  [6519.8, -1.5, 103, 0.0003],
+  [7392.4, -22.5, 160, 0.0003],
+  [7690.6, -16, 90, 0.0003],
+  [8621.5, -29, 135, 0.0003],
+  [9103.8, -21, 263, 0.0003],
+  [9112.5, -6, 119, 0.0003],
+  [10573.2, -19, 110, 0.0003],
+  [10583.4, -29.5, 191, 0.0003],
+  [12016.3, -11.5, 138, 0.0003],
+  [14170.5, -27, 138, 0.0003],
+  [15251.9, -20.5, 173, 0.0003],
 ]
 
 /** When each strike starts, in seconds. */
@@ -29,7 +55,7 @@ export const STRIKES: readonly number[] = [0, 0.2]
 export const FADED = 0.0001
 
 /** Scales the partials so that the loudest moment of the two strikes is 1 at full volume. */
-export const GAIN = 0.3146636
+export const GAIN = 0.3358434
 
 export interface PingOptions {
   /** Output gain, from 0 to 1. */

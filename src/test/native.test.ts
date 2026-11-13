@@ -366,6 +366,42 @@ describe('the rest on the lock screen and in the Dynamic Island (iPhone app)', (
     restTimer.stop()
     expect(strongNative.restActivity).toHaveBeenLastCalledWith({ endsAt: null })
   })
+
+  it('rings, vibrates and says the rest is over when it is skipped or shortened to nothing', async () => {
+    const { db, storage } = await loadApp()
+    await startWorkout(db)
+    const { restTimer } = await import('../lib/restTimer')
+    for (const [seconds, end] of [
+      [90, () => restTimer.skip()],
+      [5, () => restTimer.adjust(-10)],
+    ] as const) {
+      vi.clearAllMocks()
+      restTimer.start(seconds)
+      expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt: expect.any(Number) })
+      const before = Date.now()
+      end()
+      expect(storage.has('strong2.restTimer')).toBe(false)
+      // The ping and two vibrations, as when it runs out, and not again at its end.
+      expect(strongNative.ping).toHaveBeenCalledTimes(1)
+      expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt: null })
+      await vi.waitFor(() => expect(haptics.vibrate).toHaveBeenCalledTimes(2))
+      // Over now on the lock screen, with the next set.
+      await vi.waitFor(() =>
+        expect(strongNative.restActivity).toHaveBeenLastCalledWith(
+          expect.objectContaining({ exercise: 'Press de banca (barra)', detail: '62,5 kg × 8 · serie 2 de 2' }),
+        ),
+      )
+      const [shown] = strongNative.restActivity.mock.lastCall as [{ startedAt: number; endsAt: number }]
+      expect(shown.endsAt).toBeGreaterThanOrEqual(before)
+      expect(shown.endsAt).toBeLessThanOrEqual(Date.now())
+      expect(shown.startedAt).toBe(shown.endsAt - seconds * 1000)
+    }
+    // Nothing to skip: nothing rings.
+    vi.clearAllMocks()
+    restTimer.skip()
+    expect(strongNative.ping).not.toHaveBeenCalled()
+    restTimer.stop()
+  })
 })
 
 describe('the ping, vibration and saved files in the iPhone app', () => {

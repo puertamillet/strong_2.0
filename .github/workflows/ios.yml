@@ -120,9 +120,9 @@ jobs:
           # The app's own plugin (native/strong-native) loaded and got the notification sound ready…
           grep -q "StrongNative: sonido de los avisos listo" build/shots/consola.txt
           # …the test rest showed on the lock screen and in the Dynamic Island, and its end rang with
-          # the app in the background…
+          # the app in the background, with no notification (the lock screen says the rest is over)…
           grep -q "StrongNative: descanso en la pantalla de bloqueo" build/shots/consola.txt
-          grep -q "StrongNative: final del descanso sonado con la app en segundo plano" build/shots/consola.txt
+          grep -q "StrongNative: final del descanso sonado con la app en segundo plano, sin notificación" build/shots/consola.txt
           # …and nothing went wrong: the page's errors show as "[error]" (a missing plugin too, see src/lib/native.ts).
           if grep -E "\[error\]|JS ERROR" build/shots/consola.txt; then exit 1; fi
 

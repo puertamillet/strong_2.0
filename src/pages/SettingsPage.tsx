@@ -35,6 +35,7 @@ import {
   type PushStatus,
 } from '../lib/push'
 import { useRestTimer } from '../lib/restTimer'
+import { SHOW_SET_ONCE } from '../lib/setOnce'
 import { signalRestOver } from '../lib/sound'
 import { applyTemplateImport, exportTemplatesCsv, prepareTemplateImport } from '../lib/templatesCsv'
 import { seedIfEmpty } from '../seed'
@@ -54,8 +55,8 @@ const WEB_PUSH_HELP: Record<PushStatus, string> = {
 /** The iPhone app's notifications are its own (lib/localNotifications): no server, nothing to install. */
 const NATIVE_PUSH_HELP: Record<PushStatus, string> = {
   ...WEB_PUSH_HELP,
-  on: 'Al acabar el descanso suena el ping y vibra aunque el iPhone esté bloqueado, en silencio o estés en otra app, por encima de la música o el podcast y sin pararlos, y te llega un aviso con la siguiente serie. Con la app en pantalla no hay aviso: suena el ping. Los avisos se quitan solos al volver a la app. Si iOS cerró la app durante el descanso (lo hace a veces cuando necesita memoria), avisa solo la notificación, que en silencio solo vibra.',
-  off: 'Al acabar el descanso suena el ping y vibra aunque el iPhone esté bloqueado, en silencio o estés en otra app, por encima de la música o el podcast y sin pararlos, y te llega un aviso con la siguiente serie.',
+  on: 'Al acabar el descanso suena el ping y vibra aunque el iPhone esté bloqueado, en silencio o estés en otra app, por encima de la música o el podcast y sin pararlos, y la pantalla de bloqueo dice «Descanso terminado» con la siguiente serie. Si tienes quitadas las actividades en directo, en su lugar te llega un aviso con ella, que se quita solo al volver a la app. Con la app en pantalla solo suena el ping. Si iOS cerró la app durante el descanso (lo hace a veces cuando necesita memoria), avisa la notificación, que en silencio solo vibra.',
+  off: 'Al acabar el descanso suena el ping y vibra aunque el iPhone esté bloqueado, en silencio o estés en otra app, por encima de la música o el podcast y sin pararlos, y la pantalla de bloqueo dice «Descanso terminado» con la siguiente serie.',
 }
 
 const PUSH_HELP = isNativeApp ? NATIVE_PUSH_HELP : WEB_PUSH_HELP
@@ -293,77 +294,81 @@ export function SettingsPage() {
         <h1>Ajustes</h1>
       </header>
 
-      <section className="card settings-section">
-        <h2>Entreno</h2>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={wakeLockSupported && keepAwake}
-            disabled={!wakeLockSupported}
-            onChange={(e) => setKeepAwake(e.target.checked)}
-          />
-          Mantener la pantalla encendida durante el entreno
-        </label>
-        {!wakeLockSupported && (
-          <p className="muted small-text">Este navegador no permite mantener la pantalla encendida.</p>
-        )}
-        <p className="muted small-text">{PING_HELP}</p>
-        <button className="btn full" onClick={signalRestOver}>
-          Probar el sonido
-        </button>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={push === 'on'}
-            disabled={pushBusy || push === 'no-server' || push === 'not-installed'}
-            onChange={(e) => void togglePush(e.target.checked)}
-          />
-          Avisar con el iPhone bloqueado
-        </label>
-        <p className="muted small-text">{PUSH_HELP[push]}</p>
-        {push === 'on' && (
-          <button className="btn full" onClick={() => void testPush()}>
-            Probar el aviso
+      {SHOW_SET_ONCE && (
+        <section className="card settings-section">
+          <h2>Entreno</h2>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={wakeLockSupported && keepAwake}
+              disabled={!wakeLockSupported}
+              onChange={(e) => setKeepAwake(e.target.checked)}
+            />
+            Mantener la pantalla encendida durante el entreno
+          </label>
+          {!wakeLockSupported && (
+            <p className="muted small-text">Este navegador no permite mantener la pantalla encendida.</p>
+          )}
+          <p className="muted small-text">{PING_HELP}</p>
+          <button className="btn full" onClick={signalRestOver}>
+            Probar el sonido
           </button>
-        )}
-        {isNativeApp && <p className="muted small-text">{LIVE_ACTIVITY_HELP}</p>}
-      </section>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={push === 'on'}
+              disabled={pushBusy || push === 'no-server' || push === 'not-installed'}
+              onChange={(e) => void togglePush(e.target.checked)}
+            />
+            Avisar con el iPhone bloqueado
+          </label>
+          <p className="muted small-text">{PUSH_HELP[push]}</p>
+          {push === 'on' && (
+            <button className="btn full" onClick={() => void testPush()}>
+              Probar el aviso
+            </button>
+          )}
+          {isNativeApp && <p className="muted small-text">{LIVE_ACTIVITY_HELP}</p>}
+        </section>
+      )}
 
-      <section className="card settings-section">
-        <h2>Grabarte</h2>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={reminderStatus === 'on'}
-            disabled={reminderBusy || reminderStatus === 'no-server' || reminderStatus === 'not-installed'}
-            onChange={(e) => void toggleReminder(e.target.checked)}
-          />
-          Aviso los lunes para elegir qué grabar
-        </label>
-        <label className="time-row">
-          Hora del aviso
-          <input
-            type="time"
-            className="time-input"
-            value={reminderClock ?? clockText(reminder.minutes)}
-            disabled={reminderBusy}
-            onChange={(e) => setReminderClock(e.target.value)}
-            onBlur={(e) => void saveReminderTime(e.target.value).finally(() => setReminderClock(null))}
-          />
-        </label>
-        <p className="muted small-text">
-          {reminderStatus === 'on'
-            ? `Próximo aviso: ${whenText(nextReminderAt(reminder))}. Al tocarlo se abre «Grabar esta semana», que también está en Entrenar. En el entreno verás marcada la serie que te toca grabar.`
-            : reminderStatus === 'off'
-              ? 'Cada lunes a esa hora te llega un aviso para elegir los ejercicios que te toca grabar esa semana. En el entreno verás marcada su primera serie, o la que marques en la plantilla.'
-              : PUSH_HELP[reminderStatus]}
-        </p>
-        {reminderStatus === 'on' && (
-          <button className="btn full" onClick={() => void tryReminder()}>
-            Probar el aviso de los lunes
-          </button>
-        )}
-      </section>
+      {SHOW_SET_ONCE && (
+        <section className="card settings-section">
+          <h2>Grabarte</h2>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={reminderStatus === 'on'}
+              disabled={reminderBusy || reminderStatus === 'no-server' || reminderStatus === 'not-installed'}
+              onChange={(e) => void toggleReminder(e.target.checked)}
+            />
+            Aviso los lunes para elegir qué grabar
+          </label>
+          <label className="time-row">
+            Hora del aviso
+            <input
+              type="time"
+              className="time-input"
+              value={reminderClock ?? clockText(reminder.minutes)}
+              disabled={reminderBusy}
+              onChange={(e) => setReminderClock(e.target.value)}
+              onBlur={(e) => void saveReminderTime(e.target.value).finally(() => setReminderClock(null))}
+            />
+          </label>
+          <p className="muted small-text">
+            {reminderStatus === 'on'
+              ? `Próximo aviso: ${whenText(nextReminderAt(reminder))}. Al tocarlo se abre «Grabar esta semana», que también está en Entrenar. En el entreno verás marcada la serie que te toca grabar.`
+              : reminderStatus === 'off'
+                ? 'Cada lunes a esa hora te llega un aviso para elegir los ejercicios que te toca grabar esa semana. En el entreno verás marcada su primera serie, o la que marques en la plantilla.'
+                : PUSH_HELP[reminderStatus]}
+          </p>
+          {reminderStatus === 'on' && (
+            <button className="btn full" onClick={() => void tryReminder()}>
+              Probar el aviso de los lunes
+            </button>
+          )}
+        </section>
+      )}
 
       <section className="card settings-section">
         <h2>Ejercicios</h2>
@@ -388,65 +393,69 @@ export function SettingsPage() {
         </p>
       </section>
 
-      <section className="card settings-section">
-        <h2>Importar desde Strong</h2>
-        <p className="muted small-text">
-          En Strong: Ajustes → Exportar datos. Guarda el CSV en Archivos y selecciónalo aquí. Puedes repetir la
-          importación cuando quieras: los entrenos que ya estén no se duplican.
-        </p>
-        <button className="btn primary full" disabled={busy} onClick={() => csvInput.current?.click()}>
-          Elegir CSV de Strong
-        </button>
-        <input
-          ref={csvInput}
-          type="file"
-          accept=".csv,text/csv,text/comma-separated-values"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportCsv(f)
-          }}
-        />
-        {summary && (
-          <div className="import-summary">
-            <p>
-              <strong>{summary.added}</strong> entrenos importados
-              {summary.skipped > 0 && <> ({summary.skipped} ya estaban)</>}, <strong>{summary.newExercises}</strong>{' '}
-              ejercicios nuevos.
-            </p>
-            <button className="link strong" onClick={() => navigate('/history')}>
-              Ver historial ›
-            </button>
-          </div>
-        )}
-      </section>
+      {SHOW_SET_ONCE && (
+        <section className="card settings-section">
+          <h2>Importar desde Strong</h2>
+          <p className="muted small-text">
+            En Strong: Ajustes → Exportar datos. Guarda el CSV en Archivos y selecciónalo aquí. Puedes repetir la
+            importación cuando quieras: los entrenos que ya estén no se duplican.
+          </p>
+          <button className="btn primary full" disabled={busy} onClick={() => csvInput.current?.click()}>
+            Elegir CSV de Strong
+          </button>
+          <input
+            ref={csvInput}
+            type="file"
+            accept=".csv,text/csv,text/comma-separated-values"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (f) void onImportCsv(f)
+            }}
+          />
+          {summary && (
+            <div className="import-summary">
+              <p>
+                <strong>{summary.added}</strong> entrenos importados
+                {summary.skipped > 0 && <> ({summary.skipped} ya estaban)</>}, <strong>{summary.newExercises}</strong>{' '}
+                ejercicios nuevos.
+              </p>
+              <button className="link strong" onClick={() => navigate('/history')}>
+                Ver historial ›
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
-      <section className="card settings-section">
-        <h2>Plantillas</h2>
-        <p className="muted small-text">
-          Importa plantillas desde un CSV con una fila por serie (peso, repeticiones, rango, descansos y notas), o
-          exporta las tuyas para editarlas en Numbers o Excel. Las plantillas importadas sustituyen a las que se
-          llamen igual.
-        </p>
-        <button className="btn primary full" disabled={busy} onClick={() => templatesInput.current?.click()}>
-          Importar plantillas (CSV)
-        </button>
-        <input
-          ref={templatesInput}
-          type="file"
-          accept=".csv,text/csv,text/comma-separated-values"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void onImportTemplates(f)
-          }}
-        />
-        <button className="btn full" disabled={busy || !counts?.templates} onClick={onExportTemplates}>
-          Exportar plantillas (CSV)
-        </button>
-      </section>
+      {SHOW_SET_ONCE && (
+        <section className="card settings-section">
+          <h2>Plantillas</h2>
+          <p className="muted small-text">
+            Importa plantillas desde un CSV con una fila por serie (peso, repeticiones, rango, descansos y notas), o
+            exporta las tuyas para editarlas en Numbers o Excel. Las plantillas importadas sustituyen a las que se
+            llamen igual.
+          </p>
+          <button className="btn primary full" disabled={busy} onClick={() => templatesInput.current?.click()}>
+            Importar plantillas (CSV)
+          </button>
+          <input
+            ref={templatesInput}
+            type="file"
+            accept=".csv,text/csv,text/comma-separated-values"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (f) void onImportTemplates(f)
+            }}
+          />
+          <button className="btn full" disabled={busy || !counts?.templates} onClick={onExportTemplates}>
+            Exportar plantillas (CSV)
+          </button>
+        </section>
+      )}
 
       <section className="card settings-section">
         <h2>Copia de seguridad</h2>

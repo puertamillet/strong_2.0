@@ -2,7 +2,7 @@ import { fmtClock } from '../lib/format'
 import { REST_STEP, restTimer, useRestTimer } from '../lib/restTimer'
 import { useNow } from '../lib/useNow'
 
-/** The running rest: time left, −/+ and skip. The ping at the end is played by useRestAlarm. */
+/** The running rest: time left, −/+ and skip. The ping at the end is played by useRestAlarm, or on skipping it. */
 export function RestTimerBar() {
   const timer = useRestTimer()
   const now = useNow(250, timer !== null)
@@ -23,7 +23,7 @@ export function RestTimerBar() {
       <button className="rest-btn" aria-label={`Añadir ${REST_STEP} segundos`} onClick={() => restTimer.adjust(REST_STEP)}>
         +{REST_STEP}
       </button>
-      <button className="rest-btn skip" onClick={() => restTimer.stop()}>
+      <button className="rest-btn skip" onClick={() => restTimer.skip()}>
         Saltar
       </button>
     </div>

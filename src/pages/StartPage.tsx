@@ -8,10 +8,12 @@ import { CloseButton } from '../components/Sheet'
 import { db, type Template } from '../db'
 import { exerciseLabel } from '../lib/exercises'
 import { useFilming } from '../lib/filming'
-import { fmtShortDate, normalize } from '../lib/format'
+import { fmtDuration, fmtShortDate } from '../lib/format'
 import { restTimer } from '../lib/restTimer'
+import { SHOW_SET_ONCE } from '../lib/setOnce'
 import { useOpenSheet } from '../lib/sheets'
 import { saveTemplateOrder, sortTemplates } from '../lib/templateOrder'
+import { templateStats, type TemplateStats } from '../lib/templateStats'
 import { discardWorkout, getActiveWorkout, startWorkout } from '../lib/workouts'
 
 export function StartPage() {
@@ -26,22 +28,8 @@ export function StartPage() {
   )
   const [preview, setPreview] = useState<Template | null>(null)
   const filming = useFilming()
-  // Last time each template's routine was done: by template link, or by name (imported workouts).
-  const lastUsed = useLiveQuery(async () => {
-    const byTemplate = new Map<string, number>()
-    const byName = new Map<string, number>()
-    await db.workouts.orderBy('startedAt').each((w) => {
-      if (w.endedAt === null) return
-      if (w.templateId) byTemplate.set(w.templateId, w.startedAt)
-      byName.set(normalize(w.name.trim()), w.startedAt)
-    })
-    const map = new Map<string, number>()
-    for (const t of await db.templates.toArray()) {
-      const last = byTemplate.get(t.id) ?? byName.get(normalize(t.name.trim()))
-      if (last) map.set(t.id, last)
-    }
-    return map
-  }, [])
+  // When each template was last done and how long it takes.
+  const stats = useLiveQuery(async () => templateStats(await db.templates.toArray(), await db.workouts.toArray()), [])
 
   async function start(template?: Template) {
     setPreview(null)
@@ -93,7 +81,7 @@ export function StartPage() {
         <Icon name="chevronRight" size={18} />
       </button>
 
-      {workoutCount === 0 && (
+      {SHOW_SET_ONCE && workoutCount === 0 && (
         <button className="card hint-card" onClick={() => navigate('/settings')}>
           <strong>¿Vienes de Strong?</strong>
           <span className="muted small-text">Importa tu historial y tus rutinas desde el CSV que exporta Strong.</span>
@@ -118,7 +106,7 @@ export function StartPage() {
           <button className="card template-card" onClick={() => setPreview(t)}>
             <strong>{t.name}</strong>
             <span className="muted small-text template-exercises">{names(t)}</span>
-            {lastUsed?.get(t.id) && <span className="muted small-text">Último: {fmtShortDate(lastUsed.get(t.id)!)}</span>}
+            {stats?.get(t.id) && <span className="muted small-text">{statsText(stats.get(t.id)!)}</span>}
           </button>
         )}
       </ReorderList>
@@ -127,7 +115,7 @@ export function StartPage() {
         <TemplatePreview
           template={preview}
           names={exerciseNames}
-          lastUsed={lastUsed?.get(preview.id)}
+          stats={stats?.get(preview.id)}
           onClose={() => setPreview(null)}
           onEdit={() => {
             setPreview(null)
@@ -140,17 +128,25 @@ export function StartPage() {
   )
 }
 
+/** "Último: 12 nov · Duración media: 1 h 52 min", and how many sessions that is of with `count`. */
+function statsText({ lastUsed, average }: TemplateStats, count = false): string {
+  const last = `Último: ${fmtShortDate(lastUsed)}`
+  if (!average) return last
+  const of = average.sessions === 1 ? '1 sesión' : `últimas ${average.sessions} sesiones`
+  return `${last} · Duración media: ${fmtDuration(average.ms)}${count ? ` (${of})` : ''}`
+}
+
 interface PreviewProps {
   template: Template
   names?: Map<string, string>
-  lastUsed?: number
+  stats?: TemplateStats
   onClose: () => void
   onEdit: () => void
   onStart: () => void
 }
 
 /** A template at a glance, like Strong: its exercises and working sets, Editar and Empezar. */
-function TemplatePreview({ template, names, lastUsed, onClose, onEdit, onStart }: PreviewProps) {
+function TemplatePreview({ template, names, stats, onClose, onEdit, onStart }: PreviewProps) {
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
@@ -167,7 +163,7 @@ function TemplatePreview({ template, names, lastUsed, onClose, onEdit, onStart }
             Editar
           </button>
         </div>
-        {lastUsed && <p className="muted small-text">Último: {fmtShortDate(lastUsed)}</p>}
+        {stats && <p className="muted small-text">{statsText(stats, true)}</p>}
         <ul className="preview-list">
           {template.exercises.map((e, i) => {
             const working = e.sets.filter((s) => s.type !== 'warmup').length

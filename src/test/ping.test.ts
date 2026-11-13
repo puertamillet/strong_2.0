@@ -26,7 +26,7 @@ describe('the ping as a sound file, for the iPhone app', () => {
     expect(PING_LENGTH).toBeLessThan(3)
   })
 
-  it('sounds like Strong’s: two bright, metallic strikes 0.2 s apart that ring on and fade out', () => {
+  it('sounds like Strong’s: two bright, metallic strikes 0.2 s apart, over a low body, that ring on and fade out', () => {
     const rate = 44100
     const samples = renderPing(rate)
     const between = (from: number, to: number) => samples.slice(Math.round(from * rate), Math.round(to * rate))
@@ -37,18 +37,22 @@ describe('the ping as a sound file, for the iPhone app', () => {
     expect(samples[0]).toBe(0)
     expect(Math.max(...samples.slice(-441).map(Math.abs))).toBeLessThan(0.001)
     // Two strikes: the brightest partial, which fades fast, is back at 0.2 s.
-    const beforeSecond = strength(between(0.15, 0.2), rate, 6519)
-    expect(strength(between(0, 0.05), rate, 6519)).toBeGreaterThan(4 * beforeSecond)
-    expect(strength(between(0.2, 0.25), rate, 6519)).toBeGreaterThan(4 * beforeSecond)
-    // Metallic: high partials that are not multiples of one note, and nothing low.
+    const beforeSecond = strength(between(0.15, 0.2), rate, 6519.8)
+    expect(strength(between(0, 0.05), rate, 6519.8)).toBeGreaterThan(4 * beforeSecond)
+    expect(strength(between(0.2, 0.25), rate, 6519.8)).toBeGreaterThan(4 * beforeSecond)
+    // Metallic: high partials that are not multiples of one note, up to the air above 12 kHz…
     const strike = between(0, 0.05)
-    const bright = strength(strike, rate, 6519)
-    for (const partial of [1870, 3308, 4636, 9113]) expect(strength(strike, rate, partial)).toBeGreaterThan(bright / 4)
+    const bright = strength(strike, rate, 6519.8)
+    for (const partial of [1871, 3308.7, 4635.7, 9112.5]) expect(strength(strike, rate, partial)).toBeGreaterThan(bright / 4)
+    for (const partial of [12016.3, 15251.9]) expect(strength(strike, rate, partial)).toBeGreaterThan(bright / 20)
+    expect(strength(strike, rate, 1871 * 2)).toBeLessThan(bright / 10)
+    // …over a low body at 900 Hz, and nothing lower than the bell.
+    expect(strength(strike, rate, 900)).toBeGreaterThan(bright / 8)
     expect(strength(strike, rate, 440)).toBeLessThan(bright / 20)
-    expect(strength(strike, rate, 1870 * 2)).toBeLessThan(bright / 10)
-    // Then it rings on at 2174 Hz, which fades the slowest.
+    // Then it rings on at 2174 Hz, the bright partial that fades the slowest, and the low ones.
     const ring = between(1, 1.5)
-    const hum = strength(ring, rate, 2174)
-    for (const partial of [1870, 3308, 4294, 6519]) expect(strength(ring, rate, partial)).toBeLessThan(hum / 2)
+    const hum = strength(ring, rate, 2173.5)
+    for (const partial of [1871, 3308.7, 4295, 6519.8]) expect(strength(ring, rate, partial)).toBeLessThan(hum / 2)
+    for (const partial of [587.6, 1246.1]) expect(strength(ring, rate, partial)).toBeGreaterThan(hum / 8)
   })
 })
