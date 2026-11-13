@@ -16,32 +16,40 @@ enum LiveRest {
     static func show(_ state: RestAttributes.ContentState) async {
         // Out of date at the end of the rest: drawn as over even if the app can't say so then.
         let content = ActivityContent(state: state, staleDate: state.over ? nil : state.endsAt)
-        var activities = Activity<RestAttributes>.activities
-        if activities.isEmpty {
-            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-            do {
-                _ = try Activity.request(attributes: RestAttributes(), content: content, pushType: nil)
-                CAPLog.print("StrongNative: descanso en la pantalla de bloqueo")
-            } catch {
-                CAPLog.print("StrongNative: no se pudo mostrar el descanso en la pantalla de bloqueo: \(error)")
+        var current: Activity<RestAttributes>?
+        for activity in Activity<RestAttributes>.activities {
+            if current == nil, isOn(activity) {
+                current = activity
+            } else {
+                await activity.end(nil, dismissalPolicy: .immediate)
             }
+        }
+        if let current {
+            await current.update(content)
             return
         }
-        let current = activities.removeFirst()
-        await current.update(content)
-        for other in activities {
-            await other.end(nil, dismissalPolicy: .immediate)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        do {
+            _ = try Activity.request(attributes: RestAttributes(), content: content, pushType: nil)
+            CAPLog.print("StrongNative: descanso en la pantalla de bloqueo")
+        } catch {
+            CAPLog.print("StrongNative: no se pudo mostrar el descanso en la pantalla de bloqueo: \(error)")
         }
     }
 
     /// The rest is over: it says so until the next rest starts or the workout ends.
     @MainActor
     static func restIsOver() async {
-        for activity in Activity<RestAttributes>.activities {
+        for activity in Activity<RestAttributes>.activities where isOn(activity) {
             var state = activity.content.state
             state.over = true
             await activity.update(ActivityContent(state: state, staleDate: nil))
         }
+    }
+
+    /// Whether it can still change: iOS ends an activity after 8 hours, and then it only goes away.
+    private static func isOn(_ activity: Activity<RestAttributes>) -> Bool {
+        activity.activityState == .active || activity.activityState == .stale
     }
 
     /// Takes it away.
