@@ -35,7 +35,11 @@ function fakeNotifications(start: { permission?: string; answer?: string } = {})
   return { plugin, pending, listeners, calls, cleared: () => cleared }
 }
 
-const strongNative = { ping: vi.fn(async () => {}), keepAwake: vi.fn<(options: { on: boolean }) => Promise<void>>(async () => {}) }
+const strongNative = {
+  ping: vi.fn(async () => {}),
+  ringAt: vi.fn<(options: { endsAt: number | null }) => Promise<void>>(async () => {}),
+  keepAwake: vi.fn<(options: { on: boolean }) => Promise<void>>(async () => {}),
+}
 const haptics = {
   impact: vi.fn<(options: unknown) => Promise<void>>(async () => {}),
   vibrate: vi.fn<(options: unknown) => Promise<void>>(async () => {}),
@@ -235,8 +239,11 @@ describe('notification settings in the iPhone app', () => {
     const endsAt = Date.now() + 60_000
     push.scheduleRestPush(endsAt)
     await vi.waitFor(() => expect(notifications.pending.get(1)?.schedule?.at).toEqual(new Date(endsAt)))
+    // The app also rings by itself at the end, with the iPhone locked too.
+    expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt })
     push.scheduleRestPush(null)
     await vi.waitFor(() => expect(notifications.pending.has(1)).toBe(false))
+    expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt: null })
   })
 
   it('does not ask if rest alerts were turned off, and says so when iOS does not let it notify', async () => {
@@ -246,13 +253,17 @@ describe('notification settings in the iPhone app', () => {
     off.push.scheduleRestPush(Date.now() + 60_000)
     await new Promise((r) => setTimeout(r, 20))
     expect(off.notifications.pending.size).toBe(0)
+    expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt: null })
     const denied = await loadApp(fakeNotifications({ answer: 'denied' }))
     await denied.push.checkPushSubscription()
     expect(denied.push.pushStatus()).toBe('denied')
     expect(denied.push.reminderStatus()).toBe('denied')
-    denied.push.scheduleRestPush(Date.now() + 60_000)
+    const endsAt = Date.now() + 60_000
+    denied.push.scheduleRestPush(endsAt)
     await new Promise((r) => setTimeout(r, 20))
     expect(denied.notifications.pending.size).toBe(0)
+    // Without notifications, the app still rings by itself.
+    expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt })
   })
 
   it('turns rest alerts off and on again', async () => {
@@ -262,8 +273,18 @@ describe('notification settings in the iPhone app', () => {
     await vi.waitFor(() => expect(notifications.pending.has(1)).toBe(true))
     await push.disablePush()
     expect(notifications.pending.has(1)).toBe(false)
+    expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt: null })
     expect(push.pushStatus()).toBe('off')
     expect(await push.enablePush()).toBe('on')
+  })
+
+  it('rings the end of the rest by itself again when iOS closed the app during the rest and it opens', async () => {
+    const endsAt = Date.now() + 60_000
+    await loadApp(fakeNotifications({ permission: 'granted' }), {
+      'strong2.restTimer': JSON.stringify({ endsAt, total: 90 }),
+    })
+    await import('../lib/restTimer')
+    expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt })
   })
 
   it('turns the Monday reminder on, moves it, tries it and turns it off; it is set again when the app opens', async () => {

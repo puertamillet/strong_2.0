@@ -1,6 +1,6 @@
 import { haptic } from './haptics'
 import { isNativeApp, StrongNative } from './native'
-import { ATTACK, FADED, PARTIALS, PING_DEFAULTS, TOTAL_AMPLITUDE, type PingOptions } from './ping'
+import { FADED, NOTES, PING_DEFAULTS, PING_LENGTH, type PingOptions } from './ping'
 
 /**
  * The sound at the end of a rest, the ping (lib/ping). The web app synthesises it with Web Audio,
@@ -14,24 +14,23 @@ export function playPing(
   destination: AudioNode = ctx.destination,
   delay = 0.03,
 ): number {
-  const { pitch, ring, volume } = { ...PING_DEFAULTS, ...options }
+  const { volume } = { ...PING_DEFAULTS, ...options }
   const out = ctx.createGain()
   out.gain.value = volume
   out.connect(destination)
   const t = ctx.currentTime + delay
-  for (const [ratio, amplitude, ringTime] of PARTIALS) {
+  for (const { frequency, start, peak, attack, end } of NOTES) {
     const osc = ctx.createOscillator()
-    osc.frequency.value = pitch * ratio
+    osc.frequency.value = frequency
     const env = ctx.createGain()
-    const end = t + ring * ringTime
-    env.gain.setValueAtTime(0, t)
-    env.gain.linearRampToValueAtTime(amplitude / TOTAL_AMPLITUDE, t + ATTACK)
-    env.gain.exponentialRampToValueAtTime(FADED, end)
+    env.gain.setValueAtTime(0, t + start)
+    env.gain.linearRampToValueAtTime(peak, t + attack)
+    env.gain.exponentialRampToValueAtTime(FADED, t + end)
     osc.connect(env).connect(out)
-    osc.start(t)
-    osc.stop(end + 0.01)
+    osc.start(t + start)
+    osc.stop(t + end + 0.01)
   }
-  return delay + ring
+  return delay + PING_LENGTH
 }
 
 let audio: AudioContext | null = null

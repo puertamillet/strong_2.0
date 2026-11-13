@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PING_DEFAULTS, pingWav, renderPing } from '../lib/ping'
+import { PING_DEFAULTS, PING_LENGTH, pingWav, renderPing } from '../lib/ping'
 
 /** How strongly `samples` contain a sine at `frequency` Hz (Goertzel). */
 function strength(samples: Float32Array, sampleRate: number, frequency: number): number {
@@ -22,23 +22,33 @@ describe('the ping as a sound file, for the iPhone app', () => {
     expect(view.getUint32(24, true)).toBe(44100)
     expect(view.getUint16(34, true)).toBe(16)
     expect(view.getUint32(40, true)).toBe(wav.length - 44)
-    expect((wav.length - 44) / 2 / 44100).toBeCloseTo(PING_DEFAULTS.ring, 2)
+    expect((wav.length - 44) / 2 / 44100).toBeCloseTo(PING_LENGTH, 2)
+    expect(PING_LENGTH).toBeLessThan(3)
   })
 
-  it('sounds like the web app’s ping: a high note that rings and fades out, without clicks', () => {
+  it('sounds like Strong’s: two bright, metallic strikes 0.2 s apart that ring on and fade out', () => {
     const rate = 44100
     const samples = renderPing(rate)
+    const between = (from: number, to: number) => samples.slice(Math.round(from * rate), Math.round(to * rate))
     const peak = Math.max(...samples.map(Math.abs))
-    expect(peak).toBeGreaterThan(0.5)
-    expect(peak).toBeLessThanOrEqual(PING_DEFAULTS.volume)
-    // It starts from silence and ends in it.
+    expect(peak).toBeGreaterThan(0.8 * PING_DEFAULTS.volume)
+    expect(peak).toBeLessThanOrEqual(1.001 * PING_DEFAULTS.volume)
+    // It starts from silence and ends in it, without clicks.
     expect(samples[0]).toBe(0)
     expect(Math.max(...samples.slice(-441).map(Math.abs))).toBeLessThan(0.001)
-    // Its note, above its two overtones.
-    const start = samples.slice(0, rate / 10)
-    const note = strength(start, rate, PING_DEFAULTS.pitch)
-    expect(strength(start, rate, PING_DEFAULTS.pitch * 2)).toBeLessThan(note / 2)
-    expect(strength(start, rate, PING_DEFAULTS.pitch * 3)).toBeLessThan(note / 2)
-    expect(strength(start, rate, 440)).toBeLessThan(note / 20)
+    // Two strikes: the brightest partial, which fades fast, is back at 0.2 s.
+    const beforeSecond = strength(between(0.15, 0.2), rate, 6519)
+    expect(strength(between(0, 0.05), rate, 6519)).toBeGreaterThan(4 * beforeSecond)
+    expect(strength(between(0.2, 0.25), rate, 6519)).toBeGreaterThan(4 * beforeSecond)
+    // Metallic: high partials that are not multiples of one note, and nothing low.
+    const strike = between(0, 0.05)
+    const bright = strength(strike, rate, 6519)
+    for (const partial of [1870, 3308, 4636, 9113]) expect(strength(strike, rate, partial)).toBeGreaterThan(bright / 4)
+    expect(strength(strike, rate, 440)).toBeLessThan(bright / 20)
+    expect(strength(strike, rate, 1870 * 2)).toBeLessThan(bright / 10)
+    // Then it rings on at 2174 Hz, which fades the slowest.
+    const ring = between(1, 1.5)
+    const hum = strength(ring, rate, 2174)
+    for (const partial of [1870, 3308, 4294, 6519]) expect(strength(ring, rate, partial)).toBeLessThan(hum / 2)
   })
 })

@@ -54,14 +54,14 @@ const WEB_PUSH_HELP: Record<PushStatus, string> = {
 /** The iPhone app's notifications are its own (lib/localNotifications): no server, nothing to install. */
 const NATIVE_PUSH_HELP: Record<PushStatus, string> = {
   ...WEB_PUSH_HELP,
-  on: 'Al acabar el descanso te llega un aviso aunque el iPhone esté bloqueado o estés en otra app: suena el ping, por encima de la música o el podcast y sin pararlos, y vibra (en silencio, solo vibra). Con la app en pantalla no hay aviso: suena el ping. Los avisos se quitan solos al volver a la app.',
-  off: 'Al acabar el descanso te llega un aviso aunque el iPhone esté bloqueado o estés en otra app: suena el ping, por encima de la música o el podcast y sin pararlos, y vibra.',
+  on: 'Al acabar el descanso suena el ping y vibra aunque el iPhone esté bloqueado, en silencio o estés en otra app, por encima de la música o el podcast y sin pararlos, y te llega un aviso con la siguiente serie. Con la app en pantalla no hay aviso: suena el ping. Los avisos se quitan solos al volver a la app. Si iOS cerró la app durante el descanso (lo hace a veces cuando necesita memoria), avisa solo la notificación, que en silencio solo vibra.',
+  off: 'Al acabar el descanso suena el ping y vibra aunque el iPhone esté bloqueado, en silencio o estés en otra app, por encima de la música o el podcast y sin pararlos, y te llega un aviso con la siguiente serie.',
 }
 
 const PUSH_HELP = isNativeApp ? NATIVE_PUSH_HELP : WEB_PUSH_HELP
 
 const PING_HELP = isNativeApp
-  ? 'Al acabar el descanso, con la app en pantalla, suena un ping y vibra. Suena también con el iPhone en silencio, y la música o el podcast solo bajan un momento de volumen, sin pararse. Con el iPhone bloqueado o en otra app te avisa la notificación de abajo, con el mismo ping.'
+  ? 'Al acabar el descanso suena un ping, un doble «ding», y vibra. Suena también con el iPhone en silencio, con el volumen de la música, y la música o el podcast solo bajan un momento de volumen, sin pararse. Con el iPhone bloqueado o en otra app suena igual si está activado el aviso de abajo.'
   : 'Al acabar el descanso suena un ping si la app está en pantalla, por encima de la música o el podcast y sin pararlos. Con el iPhone en silencio el ping no suena (iOS solo deja sonar en silencio pausando lo que escuchas): entonces avisa la vibración de la notificación. Con el iPhone bloqueado o en otra app, iOS congela las apps web y no puede sonar: para eso está el aviso de abajo.'
 
 /** 900 → "15:00". */
