@@ -7,7 +7,8 @@ import UserNotifications
 /// What the web app can't do on an iPhone by itself (see src/lib/native.ts): the end-of-rest ping,
 /// which also sounds in silent mode and only lowers the podcast for a moment, ringing it when the
 /// rest is over with the iPhone locked or in another app, the same ping for the rest notifications,
-/// and keeping the screen on during a workout.
+/// the rest on the lock screen and in the Dynamic Island (LiveRest), and keeping the screen on
+/// during a workout.
 @objc(StrongNativePlugin)
 public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDelegate {
     public let identifier = "StrongNativePlugin"
@@ -15,6 +16,7 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "ping", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "ringAt", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restActivity", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "keepAwake", returnType: CAPPluginReturnPromise)
     ]
 
@@ -45,6 +47,26 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
             selector: #selector(audioInterrupted(_:)),
             name: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance())
+        // The iOS workflow (.github/workflows/ios.yml) opens the app in the simulator this way: a
+        // rest of a minute once the page has loaded, to see it in the Dynamic Island and hear its
+        // end with the app in the background.
+        if ProcessInfo.processInfo.arguments.contains("-descansoDePrueba") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                self.tryRest()
+            }
+        }
+    }
+
+    private func tryRest() {
+        let endsAt = Date().addingTimeInterval(60)
+        arm(endsAt)
+        if #available(iOS 16.2, *) {
+            Task {
+                await LiveRest.show(RestAttributes.ContentState(
+                    startedAt: Date(), endsAt: endsAt, exercise: "Press de banca (barra)",
+                    detail: "60 kg × 8 · serie 2 de 3", over: false))
+            }
+        }
     }
 
     /// iOS looks for notification sounds in Library/Sounds: the rest notification asks for ping.wav
@@ -147,26 +169,28 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
     @objc func ringAt(_ call: CAPPluginCall) {
         let endsAt = call.getDouble("endsAt").map { Date(timeIntervalSince1970: $0 / 1000) }
         DispatchQueue.main.async {
-            self.timer?.cancel()
-            self.timer = nil
-            if let endsAt, endsAt.timeIntervalSinceNow > 0 {
-                self.endsAt = endsAt
-                let timer = DispatchSource.makeTimerSource(queue: .main)
-                timer.schedule(
-                    wallDeadline: .now() + max(0, endsAt.timeIntervalSinceNow - Self.early),
-                    leeway: .milliseconds(10))
-                timer.setEventHandler { [weak self] in
-                    self?.restIsOver()
-                }
-                timer.resume()
-                self.timer = timer
-                self.startSilence()
-            } else {
-                self.endsAt = nil
-                self.stopSilence()
-            }
+            self.arm(endsAt)
             call.resolve()
         }
+    }
+
+    private func arm(_ endsAt: Date?) {
+        timer?.cancel()
+        timer = nil
+        guard let endsAt, endsAt.timeIntervalSinceNow > 0 else {
+            self.endsAt = nil
+            stopSilence()
+            return
+        }
+        self.endsAt = endsAt
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(wallDeadline: .now() + max(0, endsAt.timeIntervalSinceNow - Self.early), leeway: .milliseconds(10))
+        timer.setEventHandler { [weak self] in
+            self?.restIsOver()
+        }
+        timer.resume()
+        self.timer = timer
+        startSilence()
     }
 
     /// The end of the rest. With the app on screen the web app rings. Otherwise the app rings and
@@ -178,6 +202,11 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
         timer = nil
         guard let endsAt else { return }
         self.endsAt = nil
+        if #available(iOS 16.2, *) {
+            Task {
+                await LiveRest.restIsOver()
+            }
+        }
         // Long after the end (the app was stopped meanwhile), the notification has rung already.
         let late = Date().timeIntervalSince(endsAt) > Self.sameRest
         if UIApplication.shared.applicationState == .active || late {
@@ -195,6 +224,33 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
         rungAt = Date()
         silenceRestNotification()
         vibrate()
+        CAPLog.print("StrongNative: final del descanso sonado con la app en segundo plano")
+    }
+
+    /// Shows the rest on the lock screen and in the Dynamic Island, from `startedAt` to `endsAt` (ms
+    /// since 1970), with the next set (`exercise` and `detail`); with `endsAt` null it goes away.
+    /// Needs iOS 16.2 (before, it does nothing), and Live Activities allowed for the app (iPhone
+    /// Settings → Strong 2.0).
+    @objc func restActivity(_ call: CAPPluginCall) {
+        guard #available(iOS 16.2, *) else {
+            call.resolve()
+            return
+        }
+        let date = { (key: String) in call.getDouble(key).map { Date(timeIntervalSince1970: $0 / 1000) } }
+        let endsAt = date("endsAt")
+        let startedAt = date("startedAt")
+        let exercise = call.getString("exercise")
+        let detail = call.getString("detail")
+        Task {
+            if let endsAt {
+                await LiveRest.show(RestAttributes.ContentState(
+                    startedAt: min(startedAt ?? endsAt, endsAt), endsAt: endsAt, exercise: exercise,
+                    detail: detail, over: endsAt <= Date()))
+            } else {
+                await LiveRest.end()
+            }
+            call.resolve()
+        }
     }
 
     /// Replaces the rest notification, still to come, with the same one now and without sound.

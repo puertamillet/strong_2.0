@@ -4,7 +4,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
  * The iPhone app (ios/, made with Capacitor) is this same web app inside a native shell, with native
  * plugins for what a web app can't do on an iPhone: local notifications (lib/localNotifications),
  * vibration (lib/haptics), saving files (lib/backup) and the app's own plugin, StrongNative, for the
- * ping, with the app on screen or not, and keeping the screen on. In the browser and in the web app on the home screen this is
+ * ping, with the app on screen or not, the rest on the lock screen and keeping the screen on. In the browser and in the web app on the home screen this is
  * false, and nothing native is used.
  */
 export const isNativeApp = Capacitor.isNativePlatform()
@@ -23,6 +23,14 @@ export interface StrongNativePlugin {
    * With the app on screen it does nothing: the app rings by itself (useRestAlarm).
    */
   ringAt(options: { endsAt: number | null }): Promise<void>
+  /**
+   * Shows the rest on the lock screen and in the Dynamic Island (a Live Activity, iOS 16.2+), from
+   * `startedAt` to `endsAt`, with the next set: its exercise, and `detail` ("60 kg × 8 · serie 2
+   * de 3"). With `endsAt` null it goes away. See lib/liveActivity.
+   */
+  restActivity(
+    options: { startedAt: number; endsAt: number; exercise: string | null; detail: string | null } | { endsAt: null },
+  ): Promise<void>
   /** Keeps the screen on (`on: true`), or lets the iPhone lock by itself again. */
   keepAwake(options: { on: boolean }): Promise<void>
 }

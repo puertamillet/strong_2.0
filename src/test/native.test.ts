@@ -38,6 +38,7 @@ function fakeNotifications(start: { permission?: string; answer?: string } = {})
 const strongNative = {
   ping: vi.fn(async () => {}),
   ringAt: vi.fn<(options: { endsAt: number | null }) => Promise<void>>(async () => {}),
+  restActivity: vi.fn<(options: unknown) => Promise<void>>(async () => {}),
   keepAwake: vi.fn<(options: { on: boolean }) => Promise<void>>(async () => {}),
 }
 const haptics = {
@@ -280,11 +281,19 @@ describe('notification settings in the iPhone app', () => {
 
   it('rings the end of the rest by itself again when iOS closed the app during the rest and it opens', async () => {
     const endsAt = Date.now() + 60_000
-    await loadApp(fakeNotifications({ permission: 'granted' }), {
+    const { db } = await loadApp(fakeNotifications({ permission: 'granted' }), {
       'strong2.restTimer': JSON.stringify({ endsAt, total: 90 }),
     })
+    await db.workouts.clear()
     await import('../lib/restTimer')
     expect(strongNative.ringAt).toHaveBeenLastCalledWith({ endsAt })
+    // And it is on the lock screen again.
+    await vi.waitFor(() =>
+      expect(strongNative.restActivity).toHaveBeenLastCalledWith({ startedAt: endsAt - 90_000, endsAt, exercise: null, detail: null }),
+    )
+    // It stops following the workout, which the next tests change.
+    const { showRest } = await import('../lib/liveActivity')
+    showRest(null)
   })
 
   it('turns the Monday reminder on, moves it, tries it and turns it off; it is set again when the app opens', async () => {
@@ -304,6 +313,58 @@ describe('notification settings in the iPhone app', () => {
     await again.push.disableReminder()
     expect(again.notifications.pending.has(2)).toBe(false)
     expect(again.push.reminderStatus()).toBe('off')
+  })
+})
+
+describe('the rest on the lock screen and in the Dynamic Island (iPhone app)', () => {
+  it('shows the countdown and the next set, follows the workout, and goes away when the rest is stopped', async () => {
+    const { db } = await loadApp()
+    const workout = await startWorkout(db)
+    const { showRest } = await import('../lib/liveActivity')
+    const endsAt = Date.now() + 120_000
+    showRest({ endsAt, total: 120 })
+    const shown = (exercise: string | null, detail: string | null) =>
+      expect(strongNative.restActivity).toHaveBeenLastCalledWith({ startedAt: endsAt - 120_000, endsAt, exercise, detail })
+    await vi.waitFor(() => shown('Press de banca (barra)', '62,5 kg × 8 · serie 2 de 2'))
+    // The set that started the rest gets ticked a moment later.
+    workout.exercises[0].sets[1].done = true
+    await db.workouts.put(workout)
+    await vi.waitFor(() => shown('Fondos', '12 reps · serie 1 de 1'))
+    // Changes elsewhere in the workout don't change it.
+    const calls = strongNative.restActivity.mock.calls.length
+    workout.name = 'Pecho y tríceps'
+    await db.workouts.put(workout)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(strongNative.restActivity).toHaveBeenCalledTimes(calls)
+    showRest(null)
+    expect(strongNative.restActivity).toHaveBeenLastCalledWith({ endsAt: null })
+    // Once stopped, the workout no longer changes it.
+    workout.exercises[1].sets[0].done = true
+    await db.workouts.put(workout)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(strongNative.restActivity).toHaveBeenLastCalledWith({ endsAt: null })
+  })
+
+  it('starts, changes and goes away with the rest timer, also when the workout ends after the rest', async () => {
+    const { db, storage } = await loadApp()
+    await startWorkout(db)
+    const { restTimer } = await import('../lib/restTimer')
+    // Nothing on the lock screen when the app opens without a rest.
+    expect(strongNative.restActivity).toHaveBeenLastCalledWith({ endsAt: null })
+    restTimer.start(90)
+    const { endsAt } = JSON.parse(storage.get('strong2.restTimer') ?? '{}') as { endsAt: number }
+    await vi.waitFor(() =>
+      expect(strongNative.restActivity).toHaveBeenLastCalledWith(expect.objectContaining({ startedAt: endsAt - 90_000, endsAt })),
+    )
+    restTimer.adjust(10)
+    await vi.waitFor(() =>
+      expect(strongNative.restActivity).toHaveBeenLastCalledWith(
+        expect.objectContaining({ startedAt: endsAt - 90_000, endsAt: endsAt + 10_000 }),
+      ),
+    )
+    restTimer.expire()
+    restTimer.stop()
+    expect(strongNative.restActivity).toHaveBeenLastCalledWith({ endsAt: null })
   })
 })
 

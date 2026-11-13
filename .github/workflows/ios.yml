@@ -33,34 +33,82 @@ jobs:
       - run: npx cap sync ios
       - run: xcodebuild -version
 
+      # Signed "to run locally" (no Apple account): the simulator only loads app extensions that are
+      # signed, like the one that draws the rest on the lock screen (ios/App/RestActivity).
       - name: Build for the simulator
         run: >
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug
           -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
-          -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build -quiet
+          -derivedDataPath build/sim CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
+          build -quiet
 
       - name: Run it in the simulator
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
+          # The newest iPhone with a Dynamic Island, to see the rest there.
+          read -r UDID NAME < <(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
           runtimes = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for k, v in sorted(runtimes.items(), reverse=True) if "iOS" in k for d in v if d["name"].startswith("iPhone")))')
+          phones = [d for k, v in sorted(runtimes.items(), reverse=True) if "iOS" in k for d in v if d["name"].startswith("iPhone")]
+          island = [d for d in phones if re.search(r"iPhone 1[4-9] Pro|iPhone (1[5-9]|[2-9][0-9])\b", d["name"])]
+          d = (island or phones)[0]
+          print(d["udid"], d["name"])')
+          echo "Simulador: $NAME"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
+          # Right after its first boot the simulator can take minutes to open an app (once, on main,
+          # 5 minutes): Settings first, which waits for that.
+          time xcrun simctl launch "$UDID" com.apple.Preferences
+          xcrun simctl terminate "$UDID" com.apple.Preferences || true
+          ls build/sim/Build/Products/Debug-iphonesimulator/App.app/PlugIns
           xcrun simctl install "$UDID" build/sim/Build/Products/Debug-iphonesimulator/App.app
           mkdir -p build/shots
+          # Waits for the app to say something in its console: up to a minute, or the seconds given.
+          said() {
+            for _ in $(seq "${2:-60}"); do grep -q "$1" build/shots/consola.txt && return; sleep 1; done
+            echo "La app no ha dicho: $1"
+          }
           # The app's console (the native side's messages and the page's) goes to a file while it runs.
-          xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 > build/shots/consola.txt 2>&1 &
-          sleep 30
+          # -descansoDePrueba starts a rest of a minute 12 seconds after opening (native/strong-native).
+          xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 -descansoDePrueba > build/shots/consola.txt 2>&1 &
+          said "StrongNative: sonido de los avisos listo" 300
+          echo "$(date +%T) la app ha arrancado"
+          said "StrongNative: descanso en la pantalla de bloqueo"
+          rest=$(date +%s)
+          echo "$(date +%T) descanso de prueba en marcha"
+          sleep 2
           xcrun simctl io "$UDID" screenshot build/shots/inicio.png
+          # Another app on screen, as with the iPhone locked: the rest in the Dynamic Island (opening
+          # Settings can take 20 seconds here), and then its end, which the app rings in the background.
+          xcrun simctl launch "$UDID" com.apple.Preferences
+          sleep 4
+          echo "$(date +%T) captura de la isla, $(( $(date +%s) - rest )) s después de empezar el descanso"
+          xcrun simctl io "$UDID" screenshot build/shots/isla.png
+          said "StrongNative: final del descanso sonado" 90
+          echo "$(date +%T) final del descanso"
+          sleep 3
+          xcrun simctl io "$UDID" screenshot build/shots/isla-fin.png
           xcrun simctl terminate "$UDID" io.github.puertamillet.strong2 || true
           wait || true
           cat build/shots/consola.txt
-          # A small copy of the screenshot in the log too, to look at it without downloading the artifact.
+          # If the app didn't start, why: its crash report, if there is one.
+          if ! grep -q "StrongNative: sonido de los avisos listo" build/shots/consola.txt; then
+            ls -t ~/Library/Logs/DiagnosticReports/App-*.ips 2>/dev/null | head -n 1 | xargs -I{} head -c 6000 {} || true
+          fi
+          # What iOS said about the rest's extension, if it didn't show.
+          xcrun simctl spawn "$UDID" pluginkit -m -v -p com.apple.widgetkit-extension || true
+          xcrun simctl spawn "$UDID" log show --last 3m --style compact \
+            --predicate 'eventMessage CONTAINS "io.github.puertamillet.strong2.RestActivity"' | tail -n 40 || true
+          # The screenshots in the log too, to look at them without downloading the artifact: the app
+          # small, and the Dynamic Island at full size.
           sips -Z 700 -s format jpeg -s formatOptions 60 build/shots/inicio.png --out build/shots/inicio.jpg > /dev/null
-          echo "--- captura inicio.jpg (base64) ---"
-          base64 -b 76 -i build/shots/inicio.jpg
-          echo "--- fin de la captura ---"
+          for shot in isla isla-fin; do
+            sips -s format jpeg -s formatOptions 60 build/shots/$shot.png --out build/shots/$shot.jpg > /dev/null
+          done
+          for shot in inicio isla isla-fin; do
+            echo "--- captura $shot.jpg (base64) ---"
+            base64 -b 76 -i build/shots/$shot.jpg
+            echo "--- fin de la captura ---"
+          done
 
       - uses: actions/upload-artifact@v4
         with:
@@ -71,6 +119,10 @@ jobs:
         run: |
           # The app's own plugin (native/strong-native) loaded and got the notification sound ready…
           grep -q "StrongNative: sonido de los avisos listo" build/shots/consola.txt
+          # …the test rest showed on the lock screen and in the Dynamic Island, and its end rang with
+          # the app in the background…
+          grep -q "StrongNative: descanso en la pantalla de bloqueo" build/shots/consola.txt
+          grep -q "StrongNative: final del descanso sonado con la app en segundo plano" build/shots/consola.txt
           # …and nothing went wrong: the page's errors show as "[error]" (a missing plugin too, see src/lib/native.ts).
           if grep -E "\[error\]|JS ERROR" build/shots/consola.txt; then exit 1; fi
 
