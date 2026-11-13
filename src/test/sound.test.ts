@@ -53,7 +53,7 @@ describe('the ping at the end of a rest', () => {
     // Ambient audio mixes with other apps' audio; "playback" would pause it.
     expect(types).toEqual(['ambient'])
     expect(contexts).toHaveLength(1)
-    await vi.advanceTimersByTimeAsync(2000)
+    await vi.advanceTimersByTimeAsync(3000)
     expect(contexts[0].closed).toBe(true)
     // The next rest gets a new one.
     primeAudio()

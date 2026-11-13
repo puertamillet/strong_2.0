@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { isNativeApp } from './native'
 import { scheduleRestPush } from './push'
 import { primeAudio, signalRestOver } from './sound'
 
@@ -19,6 +20,9 @@ export interface RestTimerState {
 const KEY = 'strong2.restTimer'
 const listeners = new Set<() => void>()
 let state: RestTimerState | null = load()
+// The iPhone app opened again during a rest (iOS closes apps in the background when it needs the
+// memory): it goes on ringing the end of the rest by itself (see scheduleRestPush).
+if (state && isNativeApp) scheduleRestPush(state.endsAt)
 
 function load(): RestTimerState | null {
   try {

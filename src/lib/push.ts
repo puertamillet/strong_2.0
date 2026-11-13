@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import * as local from './localNotifications'
-import { isNativeApp } from './native'
+import { isNativeApp, StrongNative } from './native'
 
 /**
  * Notifications with the iPhone locked or in another app (Web Push): the end of each rest, and a
@@ -18,7 +18,9 @@ import { isNativeApp } from './native'
  *
  * The iPhone app (lib/native) has the same two, with the same settings, as local notifications
  * that it schedules itself (lib/localNotifications): no server, no subscription. There rest alerts
- * are on unless turned off, and permission to notify is asked the first time the app opens.
+ * are on unless turned off, and permission to notify is asked the first time the app opens. And
+ * when a rest is over the app rings the ping by itself, also with the iPhone locked or in silent
+ * mode (StrongNative.ringAt): then the notification shows without sound.
  */
 
 /** The push server, set when the app is built (empty: no server, no notifications). */
@@ -233,6 +235,7 @@ export async function enablePush(): Promise<PushStatus> {
 export async function disablePush(): Promise<void> {
   if (isNativeApp) {
     setRestOff(true)
+    ringNatively(null)
     await local.scheduleRest(null)
     return
   }
@@ -404,12 +407,19 @@ function send(to: string, endsAt: number | null): void {
   }).catch(() => {})
 }
 
+/** The iPhone app rings the end of the rest by itself, also in the background (null: no rest). */
+function ringNatively(endsAt: number | null): void {
+  void StrongNative.ringAt({ endsAt }).catch(() => {})
+}
+
 /**
  * Tells the server when the current rest ends (null: there is none now), if rest alerts are on. In
- * the iPhone app, schedules the notification itself.
+ * the iPhone app, schedules the notification itself, and rings at the end of the rest also with
+ * the iPhone locked, with permission to notify or without it.
  */
 export function scheduleRestPush(endsAt: number | null): void {
   if (isNativeApp) {
+    ringNatively(restOff ? null : endsAt)
     if (endsAt === null || (!restOff && permission === 'granted')) void local.scheduleRest(endsAt)
     return
   }

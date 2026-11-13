@@ -4,7 +4,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core'
  * The iPhone app (ios/, made with Capacitor) is this same web app inside a native shell, with native
  * plugins for what a web app can't do on an iPhone: local notifications (lib/localNotifications),
  * vibration (lib/haptics), saving files (lib/backup) and the app's own plugin, StrongNative, for the
- * ping and keeping the screen on. In the browser and in the web app on the home screen this is
+ * ping, with the app on screen or not, and keeping the screen on. In the browser and in the web app on the home screen this is
  * false, and nothing native is used.
  */
 export const isNativeApp = Capacitor.isNativePlatform()
@@ -16,6 +16,13 @@ export interface StrongNativePlugin {
    * and over the podcast or the music, which only get lower for a moment (they aren't paused).
    */
   ping(): Promise<void>
+  /**
+   * Rings the ping when the rest ends, at `endsAt` (null: no rest now), if the app isn't on screen
+   * then: with the iPhone locked or in another app, also in silent mode, and lowering the podcast or
+   * the music for a moment, as ping does. The rest notification still shows, without its sound.
+   * With the app on screen it does nothing: the app rings by itself (useRestAlarm).
+   */
+  ringAt(options: { endsAt: number | null }): Promise<void>
   /** Keeps the screen on (`on: true`), or lets the iPhone lock by itself again. */
   keepAwake(options: { on: boolean }): Promise<void>
 }
