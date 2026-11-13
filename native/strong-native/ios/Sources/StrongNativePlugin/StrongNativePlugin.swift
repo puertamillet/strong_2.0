@@ -51,7 +51,7 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
         // rest of 20 seconds once the page has loaded, to see it in the Dynamic Island and hear its
         // end with the app in the background.
         if ProcessInfo.processInfo.arguments.contains("-descansoDePrueba") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
                 self.tryRest()
             }
         }

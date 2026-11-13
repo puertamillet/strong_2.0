@@ -33,11 +33,14 @@ jobs:
       - run: npx cap sync ios
       - run: xcodebuild -version
 
+      # Signed "to run locally" (no Apple account): the simulator only loads app extensions that are
+      # signed, like the one that draws the rest on the lock screen (ios/App/RestActivity).
       - name: Build for the simulator
         run: >
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug
           -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
-          -derivedDataPath build/sim CODE_SIGNING_ALLOWED=NO build -quiet
+          -derivedDataPath build/sim CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
+          build -quiet
 
       - name: Run it in the simulator
         run: |
@@ -52,23 +55,35 @@ jobs:
           echo "Simulador: $NAME"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
+          ls build/sim/Build/Products/Debug-iphonesimulator/App.app/PlugIns
           xcrun simctl install "$UDID" build/sim/Build/Products/Debug-iphonesimulator/App.app
           mkdir -p build/shots
+          # Waits up to a minute for the app to say something in its console.
+          said() {
+            for _ in $(seq 60); do grep -q "$1" build/shots/consola.txt && return; sleep 1; done
+            echo "La app no ha dicho: $1"
+          }
           # The app's console (the native side's messages and the page's) goes to a file while it runs.
-          # -descansoDePrueba starts a rest of 20 seconds 8 seconds after opening (native/strong-native).
+          # -descansoDePrueba starts a rest of 20 seconds 12 seconds after opening (native/strong-native).
           xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 -descansoDePrueba > build/shots/consola.txt 2>&1 &
-          sleep 15
+          said "StrongNative: descanso en la pantalla de bloqueo"
+          sleep 2
           xcrun simctl io "$UDID" screenshot build/shots/inicio.png
           # Another app on screen, as with the iPhone locked: the rest in the Dynamic Island, and then
           # its end, which the app rings in the background.
           xcrun simctl launch "$UDID" com.apple.Preferences
           sleep 4
           xcrun simctl io "$UDID" screenshot build/shots/isla.png
-          sleep 20
+          said "StrongNative: final del descanso sonado"
+          sleep 3
           xcrun simctl io "$UDID" screenshot build/shots/isla-fin.png
           xcrun simctl terminate "$UDID" io.github.puertamillet.strong2 || true
           wait || true
           cat build/shots/consola.txt
+          # What iOS said about the rest's extension, if it didn't show.
+          xcrun simctl spawn "$UDID" pluginkit -m -v -p com.apple.widgetkit-extension || true
+          xcrun simctl spawn "$UDID" log show --last 3m --style compact \
+            --predicate 'eventMessage CONTAINS[c] "RestActivity" OR eventMessage CONTAINS[c] "RestAttributes"' | tail -n 80 || true
           # The screenshots in the log too, to look at them without downloading the artifact: the app
           # small, and the Dynamic Island at full size.
           sips -Z 700 -s format jpeg -s formatOptions 60 build/shots/inicio.png --out build/shots/inicio.jpg > /dev/null
