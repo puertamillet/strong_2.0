@@ -48,7 +48,7 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
             name: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance())
         // The iOS workflow (.github/workflows/ios.yml) opens the app in the simulator this way: a
-        // rest of 30 seconds once the page has loaded, to see it in the Dynamic Island and hear its
+        // rest of a minute once the page has loaded, to see it in the Dynamic Island and hear its
         // end with the app in the background.
         if ProcessInfo.processInfo.arguments.contains("-descansoDePrueba") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
@@ -58,7 +58,7 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
     }
 
     private func tryRest() {
-        let endsAt = Date().addingTimeInterval(30)
+        let endsAt = Date().addingTimeInterval(60)
         arm(endsAt)
         if #available(iOS 16.2, *) {
             Task {

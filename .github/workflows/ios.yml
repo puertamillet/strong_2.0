@@ -68,21 +68,22 @@ jobs:
             echo "La app no ha dicho: $1"
           }
           # The app's console (the native side's messages and the page's) goes to a file while it runs.
-          # -descansoDePrueba starts a rest of 30 seconds 12 seconds after opening (native/strong-native).
+          # -descansoDePrueba starts a rest of a minute 12 seconds after opening (native/strong-native).
           xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 -descansoDePrueba > build/shots/consola.txt 2>&1 &
           said "StrongNative: sonido de los avisos listo" 300
           echo "$(date +%T) la app ha arrancado"
           said "StrongNative: descanso en la pantalla de bloqueo"
+          rest=$(date +%s)
           echo "$(date +%T) descanso de prueba en marcha"
           sleep 2
           xcrun simctl io "$UDID" screenshot build/shots/inicio.png
-          # Another app on screen, as with the iPhone locked: the rest in the Dynamic Island, and then
-          # its end, which the app rings in the background.
+          # Another app on screen, as with the iPhone locked: the rest in the Dynamic Island (opening
+          # Settings can take 20 seconds here), and then its end, which the app rings in the background.
           xcrun simctl launch "$UDID" com.apple.Preferences
           sleep 4
-          echo "$(date +%T) captura de la isla"
+          echo "$(date +%T) captura de la isla, $(( $(date +%s) - rest )) s después de empezar el descanso"
           xcrun simctl io "$UDID" screenshot build/shots/isla.png
-          said "StrongNative: final del descanso sonado"
+          said "StrongNative: final del descanso sonado" 90
           echo "$(date +%T) final del descanso"
           sleep 3
           xcrun simctl io "$UDID" screenshot build/shots/isla-fin.png
