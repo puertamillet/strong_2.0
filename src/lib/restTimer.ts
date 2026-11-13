@@ -68,14 +68,31 @@ export const restTimer = {
     if (!state) return
     primeAudio()
     const endsAt = state.endsAt + deltaSeconds * 1000
-    if (endsAt <= Date.now()) set(null)
-    else set({ ...state, endsAt, total: Math.max(1, state.total + deltaSeconds) })
-    scheduleRestPush(state?.endsAt ?? null)
+    if (endsAt <= Date.now()) {
+      restTimer.skip()
+      return
+    }
+    set({ ...state, endsAt, total: Math.max(1, state.total + deltaSeconds) })
+    scheduleRestPush(state.endsAt)
     showRest(state)
   },
   /**
-   * Skipped, or the workout is over: the notification is cancelled too, and the rest leaves the
-   * lock screen (also once over, when it stays there with the next set).
+   * Skipped, or shortened to nothing: it is over now, as if it had run out. The ping sounds and the
+   * iPhone vibrates, its notification is cancelled, and the lock screen says it is over, with the
+   * next set.
+   */
+  skip() {
+    if (!state) return
+    primeAudio()
+    const { total } = state
+    scheduleRestPush(null)
+    set(null)
+    showRest({ endsAt: Date.now(), total })
+    signalRestOver()
+  },
+  /**
+   * The workout is over or discarded, or the set's rest was taken away: the notification is cancelled
+   * too, and the rest leaves the lock screen (also once over, when it stays there with the next set).
    */
   stop() {
     if (state) scheduleRestPush(null)

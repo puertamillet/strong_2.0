@@ -194,9 +194,10 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
     }
 
     /// The end of the rest. With the app on screen the web app rings. Otherwise the app rings and
-    /// vibrates, and the rest notification still shows but without its sound, which would be the
-    /// ping a second time (and wouldn't sound in silent mode). If the app can't ring, the
-    /// notification rings as it is.
+    /// vibrates, and the lock screen says the rest is over, with the next set (LiveRest), so the rest
+    /// notification doesn't come. Without the rest on the lock screen (Live Activities turned off, or
+    /// before iOS 16.2) the notification says so, without its sound, which would be the ping a second
+    /// time (and wouldn't sound in silent mode). If the app can't ring, the notification rings as it is.
     private func restIsOver() {
         timer?.cancel()
         timer = nil
@@ -222,9 +223,17 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
             return
         }
         rungAt = Date()
-        silenceRestNotification()
+        var onLockScreen = false
+        if #available(iOS 16.2, *) {
+            onLockScreen = LiveRest.isShowing
+        }
+        if onLockScreen {
+            cancelRestNotification()
+        } else {
+            silenceRestNotification()
+        }
         vibrate()
-        CAPLog.print("StrongNative: final del descanso sonado con la app en segundo plano")
+        CAPLog.print("StrongNative: final del descanso sonado con la app en segundo plano\(onLockScreen ? ", sin notificación" : "")")
     }
 
     /// Shows the rest on the lock screen and in the Dynamic Island, from `startedAt` to `endsAt` (ms
@@ -251,6 +260,13 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
             }
             call.resolve()
         }
+    }
+
+    /// Takes the rest notification away before it comes.
+    private func cancelRestNotification() {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [Self.restNotification])
+        center.removeDeliveredNotifications(withIdentifiers: [Self.restNotification])
     }
 
     /// Replaces the rest notification, still to come, with the same one now and without sound.

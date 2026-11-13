@@ -47,6 +47,11 @@ enum LiveRest {
         }
     }
 
+    /// Whether the rest is on the lock screen now.
+    static var isShowing: Bool {
+        Activity<RestAttributes>.activities.contains(where: isOn)
+    }
+
     /// Whether it can still change: iOS ends an activity after 8 hours, and then it only goes away.
     private static func isOn(_ activity: Activity<RestAttributes>) -> Bool {
         activity.activityState == .active || activity.activityState == .stale
