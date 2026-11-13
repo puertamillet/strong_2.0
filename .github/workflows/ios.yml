@@ -66,24 +66,33 @@ jobs:
           # The app's console (the native side's messages and the page's) goes to a file while it runs.
           # -descansoDePrueba starts a rest of 20 seconds 12 seconds after opening (native/strong-native).
           xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 -descansoDePrueba > build/shots/consola.txt 2>&1 &
+          said "StrongNative: sonido de los avisos listo"
+          echo "$(date +%T) la app ha arrancado"
           said "StrongNative: descanso en la pantalla de bloqueo"
+          echo "$(date +%T) descanso de prueba en marcha"
           sleep 2
           xcrun simctl io "$UDID" screenshot build/shots/inicio.png
           # Another app on screen, as with the iPhone locked: the rest in the Dynamic Island, and then
           # its end, which the app rings in the background.
           xcrun simctl launch "$UDID" com.apple.Preferences
           sleep 4
+          echo "$(date +%T) captura de la isla"
           xcrun simctl io "$UDID" screenshot build/shots/isla.png
           said "StrongNative: final del descanso sonado"
+          echo "$(date +%T) final del descanso"
           sleep 3
           xcrun simctl io "$UDID" screenshot build/shots/isla-fin.png
           xcrun simctl terminate "$UDID" io.github.puertamillet.strong2 || true
           wait || true
           cat build/shots/consola.txt
+          # If the app didn't start, why: its crash report, if there is one.
+          if ! grep -q "StrongNative: sonido de los avisos listo" build/shots/consola.txt; then
+            ls -t ~/Library/Logs/DiagnosticReports/App-*.ips 2>/dev/null | head -n 1 | xargs -I{} head -c 6000 {} || true
+          fi
           # What iOS said about the rest's extension, if it didn't show.
           xcrun simctl spawn "$UDID" pluginkit -m -v -p com.apple.widgetkit-extension || true
           xcrun simctl spawn "$UDID" log show --last 3m --style compact \
-            --predicate 'eventMessage CONTAINS[c] "RestActivity" OR eventMessage CONTAINS[c] "RestAttributes"' | tail -n 80 || true
+            --predicate 'eventMessage BEGINSWITH "RestActivity:" OR eventMessage CONTAINS[c] "Content load"' | tail -n 60 || true
           # The screenshots in the log too, to look at them without downloading the artifact: the app
           # small, and the Dynamic Island at full size.
           sips -Z 700 -s format jpeg -s formatOptions 60 build/shots/inicio.png --out build/shots/inicio.jpg > /dev/null

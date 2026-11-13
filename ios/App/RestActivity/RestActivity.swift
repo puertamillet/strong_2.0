@@ -1,4 +1,5 @@
 import ActivityKit
+import OSLog
 import SwiftUI
 import WidgetKit
 
@@ -59,18 +60,23 @@ struct RestWidget: Widget {
     }
 }
 
+private let log = Logger(subsystem: "io.github.puertamillet.strong2.RestActivity", category: "rest")
+
 /// The app's blue (--accent in src/index.css, dark mode).
 private let accent = Color(red: 0x3d / 255, green: 0x9b / 255, blue: 1)
 
 /// What is drawn of a rest.
 struct Rest {
     let state: RestAttributes.ContentState
-    /// The app said so when it rang, or its end has passed (iOS marks the activity out of date then).
+    /// The app said so when it rang, or its end has passed (iOS marks the activity out of date then,
+    /// for when the app couldn't say so; not believed before the end).
     let over: Bool
 
     init(_ context: ActivityViewContext<RestAttributes>) {
         state = context.state
-        over = context.state.over || context.isStale
+        over = context.state.over || (context.isStale && context.state.endsAt <= Date())
+        log.notice(
+            "RestActivity: over \(context.state.over, privacy: .public) stale \(context.isStale, privacy: .public) ends in \(context.state.endsAt.timeIntervalSinceNow, privacy: .public)")
     }
 
     var interval: ClosedRange<Date> {
