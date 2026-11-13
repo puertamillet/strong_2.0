@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { showRest } from './liveActivity'
 import { isNativeApp } from './native'
 import { scheduleRestPush } from './push'
 import { primeAudio, signalRestOver } from './sound'
@@ -20,9 +21,13 @@ export interface RestTimerState {
 const KEY = 'strong2.restTimer'
 const listeners = new Set<() => void>()
 let state: RestTimerState | null = load()
-// The iPhone app opened again during a rest (iOS closes apps in the background when it needs the
-// memory): it goes on ringing the end of the rest by itself (see scheduleRestPush).
-if (state && isNativeApp) scheduleRestPush(state.endsAt)
+// The iPhone app opened again (iOS closes apps in the background when it needs the memory): a rest
+// in progress goes on ringing at its end (see scheduleRestPush) and showing on the lock screen;
+// otherwise what was left there goes away.
+if (isNativeApp) {
+  if (state) scheduleRestPush(state.endsAt)
+  showRest(state)
+}
 
 function load(): RestTimerState | null {
   try {
@@ -48,7 +53,8 @@ function set(next: RestTimerState | null) {
 
 /**
  * The rest timer. Starting, changing or stopping it also tells the push server, which notifies
- * the phone when the rest ends if the app is in the background (see lib/push).
+ * the phone when the rest ends if the app is in the background (see lib/push), and in the iPhone
+ * app it shows on the lock screen (lib/liveActivity).
  */
 export const restTimer = {
   start(seconds: number, key?: string) {
@@ -56,6 +62,7 @@ export const restTimer = {
     primeAudio()
     set({ endsAt: Date.now() + seconds * 1000, total: seconds, key })
     scheduleRestPush(state?.endsAt ?? null)
+    showRest(state)
   },
   adjust(deltaSeconds: number) {
     if (!state) return
@@ -64,11 +71,16 @@ export const restTimer = {
     if (endsAt <= Date.now()) set(null)
     else set({ ...state, endsAt, total: Math.max(1, state.total + deltaSeconds) })
     scheduleRestPush(state?.endsAt ?? null)
+    showRest(state)
   },
-  /** Skipped, or the workout is over: the notification is cancelled too. */
+  /**
+   * Skipped, or the workout is over: the notification is cancelled too, and the rest leaves the
+   * lock screen (also once over, when it stays there with the next set).
+   */
   stop() {
     if (state) scheduleRestPush(null)
     set(null)
+    showRest(null)
   },
   /** The rest ran out with the app open: the notification still comes (it vibrates). */
   expire() {

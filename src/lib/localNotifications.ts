@@ -40,23 +40,49 @@ export async function askPermission(): Promise<Permission> {
   return permissionOf((await LocalNotifications.requestPermissions()).display)
 }
 
-/**
- * "Press de banca (barra) · 60 kg × 8": the first set not ticked yet of the workout in progress, as
- * the web app's notification says it (public/push-sw.js). Null if there is none.
- */
-export async function nextSetText(): Promise<string | null> {
+/** The first set not ticked yet of the workout in progress. */
+export interface NextSet {
+  /** "Press de banca (barra)" */
+  exercise: string
+  /** "60 kg × 8", "12 reps", or null if it has neither yet. */
+  load: string | null
+  /** Which of its exercise's sets it is, from 1, and how many the exercise has. */
+  number: number
+  count: number
+}
+
+/** The next set to do (NextSet), or null if there is no workout in progress or nothing left in it. */
+export async function nextSet(): Promise<NextSet | null> {
   // The workout in progress is always the last one started.
   const workout = await db.workouts.orderBy('startedAt').last()
   if (!workout || workout.endedAt !== null) return null
   for (const we of workout.exercises) {
-    const set = we.sets.find((s) => !s.done)
-    if (!set) continue
+    const index = we.sets.findIndex((s) => !s.done)
+    if (index < 0) continue
+    const set = we.sets[index]
     const exercise = await db.exercises.get(we.exerciseId)
-    const name = exercise ? exerciseLabel(exercise) : 'Siguiente ejercicio'
-    if (set.reps === null && set.weight === null) return name
-    return `${name} · ${set.weight ? `${fmtNumber(set.weight)} kg × ${set.reps ?? '—'}` : `${set.reps} reps`}`
+    return {
+      exercise: exercise ? exerciseLabel(exercise) : 'Siguiente ejercicio',
+      load: set.weight
+        ? `${fmtNumber(set.weight)} kg × ${set.reps ?? '—'}`
+        : set.reps !== null
+          ? `${set.reps} reps`
+          : null,
+      number: index + 1,
+      count: we.sets.length,
+    }
   }
   return null
+}
+
+/**
+ * "Press de banca (barra) · 60 kg × 8": the next set, as the web app's notification says it
+ * (public/push-sw.js). Null if there is none.
+ */
+export async function nextSetText(): Promise<string | null> {
+  const next = await nextSet()
+  if (!next) return null
+  return next.load ? `${next.exercise} · ${next.load}` : next.exercise
 }
 
 interface Rest {

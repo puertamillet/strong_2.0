@@ -87,7 +87,7 @@ Stack: React + TypeScript + Vite, Dexie (IndexedDB), React Router (HashRouter) y
 - `src/data/`: el catálogo de ejercicios y los dibujos de la figura del cuerpo.
 - `public/push-sw.js`: la parte del service worker que muestra las notificaciones (fin del descanso y aviso de los lunes) y abre la página al tocar la del lunes.
 - `capacitor.config.ts`, `ios/`: la app para iPhone (Capacitor), con `src/lib/native.ts` y `src/lib/localNotifications.ts` para lo nativo.
-- `native/strong-native/`: el plugin propio de la app para iPhone (el ping, también con el iPhone bloqueado, y mantener la pantalla encendida, en Swift).
+- `native/strong-native/`: el plugin propio de la app para iPhone (el ping, también con el iPhone bloqueado, el descanso en la pantalla de bloqueo y mantener la pantalla encendida, en Swift). La actividad en directo la dibuja la extensión `ios/App/RestActivity`.
 - `push-server/`: el servidor de avisos (Cloudflare Worker con un Durable Object que guarda los descansos, los avisos semanales y su alarma, firma VAPID de los push y cifra el mensaje del aviso semanal, RFC 8291).
 
 ## Créditos
@@ -104,6 +104,7 @@ La misma app dentro de una app nativa de iPhone (Capacitor, carpeta `ios/`), par
 
 - Los avisos al acabar el descanso y el de los lunes son notificaciones locales del propio iPhone: sin servidor, sin «from Strong 2.0», con el ping de la app como sonido, y se quitan solas al volver a la app.
 - El ping suena también con el iPhone en silencio, bloqueado o en otra app, y la música o el podcast solo bajan un momento de volumen, sin pararse. Durante el descanso la app reproduce silencio, mezclado con lo que escuches, para que iOS no la congele; al acabar suena el ping y la notificación llega sin sonido. Si iOS cierra la app, suena la notificación, con el mismo ping (en silencio solo vibra).
+- Durante el descanso, la cuenta atrás, una barra que se vacía y la siguiente serie se ven en la pantalla de bloqueo y en la Dynamic Island (una actividad en directo, iOS 16.2 o posterior, en `ios/App/RestActivity`). Al acabar dice «Descanso terminado» con la siguiente serie, hasta el próximo descanso o el final del entreno. Sin cuenta de desarrollador de pago no hay push, así que la cambia la propia app.
 - Vibra al acabar el descanso y al marcar series.
 - Las copias de seguridad y los CSV se guardan con el menú de compartir («Guardar en Archivos»).
 

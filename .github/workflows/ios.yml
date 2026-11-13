@@ -41,26 +41,45 @@ jobs:
 
       - name: Run it in the simulator
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
+          # The newest iPhone with a Dynamic Island, to see the rest there.
+          read -r UDID NAME < <(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
           runtimes = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for k, v in sorted(runtimes.items(), reverse=True) if "iOS" in k for d in v if d["name"].startswith("iPhone")))')
+          phones = [d for k, v in sorted(runtimes.items(), reverse=True) if "iOS" in k for d in v if d["name"].startswith("iPhone")]
+          island = [d for d in phones if re.search(r"iPhone 1[4-9] Pro|iPhone (1[5-9]|[2-9][0-9])\b", d["name"])]
+          d = (island or phones)[0]
+          print(d["udid"], d["name"])')
+          echo "Simulador: $NAME"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" build/sim/Build/Products/Debug-iphonesimulator/App.app
           mkdir -p build/shots
           # The app's console (the native side's messages and the page's) goes to a file while it runs.
-          xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 > build/shots/consola.txt 2>&1 &
-          sleep 30
+          # -descansoDePrueba starts a rest of 20 seconds 8 seconds after opening (native/strong-native).
+          xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 -descansoDePrueba > build/shots/consola.txt 2>&1 &
+          sleep 15
           xcrun simctl io "$UDID" screenshot build/shots/inicio.png
+          # Another app on screen, as with the iPhone locked: the rest in the Dynamic Island, and then
+          # its end, which the app rings in the background.
+          xcrun simctl launch "$UDID" com.apple.Preferences
+          sleep 4
+          xcrun simctl io "$UDID" screenshot build/shots/isla.png
+          sleep 20
+          xcrun simctl io "$UDID" screenshot build/shots/isla-fin.png
           xcrun simctl terminate "$UDID" io.github.puertamillet.strong2 || true
           wait || true
           cat build/shots/consola.txt
-          # A small copy of the screenshot in the log too, to look at it without downloading the artifact.
+          # The screenshots in the log too, to look at them without downloading the artifact: the app
+          # small, and the Dynamic Island at full size.
           sips -Z 700 -s format jpeg -s formatOptions 60 build/shots/inicio.png --out build/shots/inicio.jpg > /dev/null
-          echo "--- captura inicio.jpg (base64) ---"
-          base64 -b 76 -i build/shots/inicio.jpg
-          echo "--- fin de la captura ---"
+          for shot in isla isla-fin; do
+            sips -s format jpeg -s formatOptions 60 build/shots/$shot.png --out build/shots/$shot.jpg > /dev/null
+          done
+          for shot in inicio isla isla-fin; do
+            echo "--- captura $shot.jpg (base64) ---"
+            base64 -b 76 -i build/shots/$shot.jpg
+            echo "--- fin de la captura ---"
+          done
 
       - uses: actions/upload-artifact@v4
         with:
@@ -71,6 +90,10 @@ jobs:
         run: |
           # The app's own plugin (native/strong-native) loaded and got the notification sound ready…
           grep -q "StrongNative: sonido de los avisos listo" build/shots/consola.txt
+          # …the test rest showed on the lock screen and in the Dynamic Island, and its end rang with
+          # the app in the background…
+          grep -q "StrongNative: descanso en la pantalla de bloqueo" build/shots/consola.txt
+          grep -q "StrongNative: final del descanso sonado con la app en segundo plano" build/shots/consola.txt
           # …and nothing went wrong: the page's errors show as "[error]" (a missing plugin too, see src/lib/native.ts).
           if grep -E "\[error\]|JS ERROR" build/shots/consola.txt; then exit 1; fi
 

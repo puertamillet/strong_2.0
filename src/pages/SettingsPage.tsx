@@ -60,6 +60,9 @@ const NATIVE_PUSH_HELP: Record<PushStatus, string> = {
 
 const PUSH_HELP = isNativeApp ? NATIVE_PUSH_HELP : WEB_PUSH_HELP
 
+const LIVE_ACTIVITY_HELP =
+  'Durante el descanso, la cuenta atrás y la siguiente serie se ven en la pantalla de bloqueo y en la Dynamic Island. Al acabar, se queda «Descanso terminado» con la siguiente serie hasta el próximo descanso o el final del entreno. Si no sale: Ajustes del iPhone → Strong 2.0 → Actividades en directo.'
+
 const PING_HELP = isNativeApp
   ? 'Al acabar el descanso suena un ping, un doble «ding», y vibra. Suena también con el iPhone en silencio, con el volumen de la música, y la música o el podcast solo bajan un momento de volumen, sin pararse. Con el iPhone bloqueado o en otra app suena igual si está activado el aviso de abajo.'
   : 'Al acabar el descanso suena un ping si la app está en pantalla, por encima de la música o el podcast y sin pararlos. Con el iPhone en silencio el ping no suena (iOS solo deja sonar en silencio pausando lo que escuchas): entonces avisa la vibración de la notificación. Con el iPhone bloqueado o en otra app, iOS congela las apps web y no puede sonar: para eso está el aviso de abajo.'
@@ -323,6 +326,7 @@ export function SettingsPage() {
             Probar el aviso
           </button>
         )}
+        {isNativeApp && <p className="muted small-text">{LIVE_ACTIVITY_HELP}</p>}
       </section>
 
       <section className="card settings-section">
