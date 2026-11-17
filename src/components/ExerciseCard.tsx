@@ -5,7 +5,7 @@ import { haptic } from '../lib/haptics'
 import { afterRemoving, restTimer, useRestTimer } from '../lib/restTimer'
 import { useNow } from '../lib/useNow'
 import { useFilming } from '../lib/filming'
-import { filmSetIndex, isPR, nextSet, sameSets, stalledFor, type ExerciseContext } from '../lib/workouts'
+import { filmSetIndexes, isPR, nextSet, sameSets, stalledFor, type ExerciseContext } from '../lib/workouts'
 import { askRange, confirmDialog, notify, pickDuration } from '../lib/dialog'
 import { exerciseLabel } from '../lib/exercises'
 import { ExerciseTags } from './ExerciseTags'
@@ -79,10 +79,15 @@ export function ExerciseCard({
   const placeholders = useMemo(() => placeholdersFor(we, previous), [we, previous])
   // In the workout in progress: sessions in a row without more weight or reps, until a set beats them.
   const stalled = mode === 'active' ? stalledFor(we.sets, context) : 0
-  // The set to film: in the workout, if the exercise is to be filmed this week; in the template, the one marked.
-  const filming = useFilming()
-  const filmIndex =
-    mode === 'template' ? we.sets.findIndex((s) => s.film) : mode === 'active' && filming.includes(we.exerciseId) ? filmSetIndex(we.sets) : -1
+  // The sets to film: in the workout, those chosen if the exercise is to be filmed this week; in the template, the one marked.
+  const filming = useFilming().find((c) => c.exerciseId === we.exerciseId)
+  const filmIndexes = new Set(
+    mode === 'template'
+      ? we.sets.flatMap((s, i) => (s.film ? [i] : []))
+      : mode === 'active' && filming
+        ? filmSetIndexes(we.sets, filming.sets)
+        : [],
+  )
   const labels = setLabels(we.sets)
   const name = exercise ? exerciseLabel(exercise) : 'Ejercicio eliminado'
   const timerKey = (si: number) => (restKey === undefined ? undefined : `${restKey}:${si}`)
@@ -298,7 +303,7 @@ export function ExerciseCard({
             <div key={si} className={`set-block ${folding === si ? 'leaving' : ''}`}>
               <div className="set-block-clip">
                 <div className="set-block-body">
-                  {si === filmIndex && (
+                  {filmIndexes.has(si) && (
                     <p className="film-note" role={mode === 'active' ? 'status' : undefined}>
                       <Icon name="camera" size={16} />
                       {mode === 'template' ? 'Serie para grabar' : 'Grábate esta serie'}
