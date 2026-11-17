@@ -39,6 +39,8 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
     /// When the app last rang by itself at the end of a rest.
     private var rungAt: Date?
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    /// The test rest is still to start (see load).
+    private var testRestPending = false
 
     override public func load() {
         installNotificationSound()
@@ -49,11 +51,18 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
             object: AVAudioSession.sharedInstance())
         // The iOS workflow (.github/workflows/ios.yml) opens the app in the simulator this way: a
         // rest of a minute once the page has loaded, to see it in the Dynamic Island and hear its
-        // end with the app in the background.
-        if ProcessInfo.processInfo.arguments.contains("-descansoDePrueba") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
-                self.tryRest()
-            }
+        // end with the app in the background. Once the page has called restActivity: when it opens,
+        // it takes away any rest left on the lock screen (src/lib/restTimer.ts), and that would take
+        // this one away if it came first (on a slow simulator the page can take more than 12 s).
+        testRestPending = ProcessInfo.processInfo.arguments.contains("-descansoDePrueba")
+    }
+
+    /// The test rest (see load), 2 seconds after the page has shown or taken away its own.
+    private func startTestRest() {
+        guard testRestPending else { return }
+        testRestPending = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.tryRest()
         }
     }
 
@@ -243,6 +252,7 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
     @objc func restActivity(_ call: CAPPluginCall) {
         guard #available(iOS 16.2, *) else {
             call.resolve()
+            DispatchQueue.main.async { self.startTestRest() }
             return
         }
         let date = { (key: String) in call.getDouble(key).map { Date(timeIntervalSince1970: $0 / 1000) } }
@@ -259,6 +269,7 @@ public class StrongNativePlugin: CAPPlugin, CAPBridgedPlugin, AVAudioPlayerDeleg
                 await LiveRest.end()
             }
             call.resolve()
+            DispatchQueue.main.async { self.startTestRest() }
         }
     }
 

@@ -68,7 +68,7 @@ jobs:
             echo "La app no ha dicho: $1"
           }
           # The app's console (the native side's messages and the page's) goes to a file while it runs.
-          # -descansoDePrueba starts a rest of a minute 12 seconds after opening (native/strong-native).
+          # -descansoDePrueba starts a rest of a minute once the page has loaded (native/strong-native).
           xcrun simctl launch --console-pty "$UDID" io.github.puertamillet.strong2 -descansoDePrueba > build/shots/consola.txt 2>&1 &
           said "StrongNative: sonido de los avisos listo" 300
           echo "$(date +%T) la app ha arrancado"
