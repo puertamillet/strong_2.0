@@ -74,7 +74,7 @@ export function StartPage() {
           <strong>Grabar esta semana</strong>
           <span className="muted small-text">
             {filming.length
-              ? filming.map((id) => exerciseNames?.get(id) ?? '?').join(', ')
+              ? filming.map(({ exerciseId }) => exerciseNames?.get(exerciseId) ?? '?').join(', ')
               : 'Elige qué ejercicios te toca grabar'}
           </span>
         </span>

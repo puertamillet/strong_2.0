@@ -106,6 +106,31 @@ export function filmSetIndex(sets: Pick<WorkoutSet, 'type' | 'film'>[]): number 
   return working >= 0 ? working : sets.length ? 0 : -1
 }
 
+/**
+ * A set of an exercise, the same one in every template and workout it is in, even with different
+ * warm-ups: "1" is the first set after the warm-ups, "2" the next…, and "C1", "C2"… the warm-ups.
+ */
+export type SetKey = string
+
+/** Each set's key (see SetKey). */
+export function setKeys(sets: Pick<WorkoutSet, 'type'>[]): SetKey[] {
+  let warmups = 0
+  let working = 0
+  return sets.map((s) => (s.type === 'warmup' ? `C${++warmups}` : String(++working)))
+}
+
+/**
+ * The sets to film of an exercise chosen to be filmed that week: those of `keys`, or, while its
+ * sets haven't been chosen, the one of filmSetIndex.
+ */
+export function filmSetIndexes(sets: Pick<WorkoutSet, 'type' | 'film'>[], keys?: readonly SetKey[]): number[] {
+  if (!keys) {
+    const i = filmSetIndex(sets)
+    return i < 0 ? [] : [i]
+  }
+  return setKeys(sets).flatMap((key, i) => (keys.includes(key) ? [i] : []))
+}
+
 export async function addExercisesToWorkout(id: string, exerciseIds: string[]): Promise<void> {
   const added = await newWorkoutExercises(exerciseIds, id)
   await mutateWorkout(id, (w) => {
