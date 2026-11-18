@@ -12,7 +12,7 @@ import {
   weekStarts,
   workoutPRCounts,
 } from '../lib/stats'
-import { exerciseContext, isPR } from '../lib/workouts'
+import { e1rmSet, exerciseContext, isPR, sessionE1rm } from '../lib/workouts'
 
 const set = (weight: number, reps: number, type: WorkoutSet['type'] = 'normal'): WorkoutSet => ({ type, weight, reps, done: true })
 
@@ -43,7 +43,29 @@ describe('exercise stats', () => {
     expect(s[0].maxWeight).toBe(80)
     expect(s[0].volume).toBe(800)
     expect(s[0].e1rm).toBeCloseTo(80 * (1 + 5 / 30))
+    expect(s[0].e1rmSet).toBe(history[0].exercises[0].sets[1])
     expect(s[1].maxReps).toBe(12)
+  })
+
+  it('takes the 1RM of a session from its first set after the warm-ups, not from the best set', () => {
+    const sets = [set(60, 10, 'warmup'), set(100, 5, 'top'), set(85, 12, 'backoff'), set(70, 20, 'drop')]
+    expect(e1rmSet(sets)).toBe(sets[1])
+    expect(sessionE1rm(sets)).toBeCloseTo(100 * (1 + 5 / 30)) // 116.7, though 85×12 ≈ 119 and 70×20 ≈ 116.7
+    expect(sessionE1rm([set(100, 1)])).toBe(100)
+    expect(sessionE1rm([set(0, 12), set(20, 8)])).toBe(0) // the first set has no weight
+    expect(sessionE1rm([set(60, 10, 'warmup')])).toBe(0)
+    const [s] = exerciseSessions([workout('x', 5, sets)], 'bench')
+    expect(s.e1rm).toBeCloseTo(116.67, 2)
+    expect(s.e1rmSet).toBe(sets[1])
+  })
+
+  it('takes the 1RM record from the 1RM of each session', () => {
+    const r = personalRecords(
+      exerciseSessions([workout('x', 5, [set(100, 5), set(85, 12)]), workout('y', 7, [set(90, 8), set(60, 30)])], 'bench'),
+    )
+    expect(r.e1rm?.workoutId).toBe('x') // 100×5 ≈ 116.7 beats 90×8 = 114; back-off sets don't count
+    expect(r.e1rm?.value).toBeCloseTo(116.67, 2)
+    expect(r.e1rm?.set).toEqual(set(100, 5))
   })
 
   it('adds up the volume of a workout, without warm-ups', () => {
@@ -71,6 +93,16 @@ describe('exercise stats', () => {
     expect(prs.get('b')).toBe(1)
     expect(prs.get('c')).toBeUndefined()
     expect(prs.get('d')).toBe(1)
+  })
+
+  it('counts a better 1RM only from the first set after the warm-ups', () => {
+    const prs = workoutPRCounts([
+      workout('x', 5, [set(100, 5), set(80, 8)]),
+      workout('y', 7, [set(40, 10, 'warmup'), set(95, 5), set(80, 20)]), // 80×20 ≈ 133 is not the first set
+      workout('z', 9, [set(40, 10, 'warmup'), set(95, 7), set(80, 8)]), // 95×7 ≈ 117.2 beats 100×5 ≈ 116.7
+    ])
+    expect(prs.get('y')).toBeUndefined()
+    expect(prs.get('z')).toBe(1)
   })
 
   it('starts weeks on Monday', () => {
@@ -146,15 +178,26 @@ describe('records while logging', () => {
     const ctx = await exerciseContext('bench', 'new', new Date(2026, 0, 10).getTime())
     expect(ctx.sessions).toBe(3)
     expect(ctx.bestWeight).toBe(85)
+    expect(ctx.bestE1rm).toBeCloseTo(85 * (1 + 5 / 30))
     expect(ctx.last?.sets).toEqual([set(85, 3)])
-    expect(isPR(set(87.5, 1), ctx)).toBe(true) // heavier
-    expect(isPR(set(80, 9), ctx)).toBe(true) // better estimated 1RM
-    expect(isPR(set(80, 5), ctx)).toBe(false)
-    expect(isPR({ ...set(100, 5), done: false }, ctx)).toBe(false)
-    expect(isPR(set(100, 5, 'warmup'), ctx)).toBe(false)
+    expect(isPR([set(87.5, 1)], 0, ctx)).toBe(true) // heavier
+    expect(isPR([set(80, 9)], 0, ctx)).toBe(true) // better estimated 1RM
+    expect(isPR([set(80, 5)], 0, ctx)).toBe(false)
+    expect(isPR([{ ...set(100, 5), done: false }], 0, ctx)).toBe(false)
+    expect(isPR([set(100, 5, 'warmup')], 0, ctx)).toBe(false)
 
     const first = await exerciseContext('squat', 'new', Date.now())
-    expect(isPR(set(100, 5), first)).toBe(false) // nothing to beat yet
+    expect(isPR([set(100, 5)], 0, first)).toBe(false) // nothing to beat yet
+  })
+
+  it('takes the 1RM to beat, and a better one, only from the first set after the warm-ups', async () => {
+    await db.workouts.add(workout('e', 10, [set(40, 10, 'warmup'), set(80, 5), set(60, 25)])) // 60×25 = 110
+    const ctx = await exerciseContext('bench', 'new', new Date(2026, 0, 11).getTime())
+    expect(ctx.bestE1rm).toBeCloseTo(85 * (1 + 5 / 30)) // 99.2, from b's first set
+    const today = [set(40, 10, 'warmup'), set(80, 9), set(80, 9), set(87.5, 1)]
+    expect(isPR(today, 1, ctx)).toBe(true) // the first set: 80×9 = 104 beats 99.2
+    expect(isPR(today, 2, ctx)).toBe(false) // the same set later on: not the one the 1RM comes from
+    expect(isPR(today, 3, ctx)).toBe(true) // heavier than ever, wherever it is
   })
 })
 

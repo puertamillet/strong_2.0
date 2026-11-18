@@ -11,7 +11,6 @@ import { missingFields } from '../lib/exercises'
 import { useCloseSheet, useOpenSheet } from '../lib/sheets'
 import { fmtDate, fmtInt, fmtMediumDate, fmtNumber, fmtSet, fmtShortDate, setLabels } from '../lib/format'
 import { exerciseSessions, personalRecords, type PersonalRecord, type Records, type Session } from '../lib/stats'
-import { estimated1RM } from '../lib/workouts'
 
 type Tab = 'about' | 'charts' | 'records' | 'history'
 
@@ -21,11 +20,12 @@ type MetricKey = 'e1rm' | 'weight' | 'volume' | 'reps'
 
 const kg = (v: number) => `${fmtNumber(Math.round(v * 10) / 10)} kg`
 
+// In the order of the buttons: 1RM last.
 const METRICS: Record<MetricKey, { label: string; short: string; get: (s: Session) => number; fmt: (v: number) => string }> = {
-  e1rm: { label: '1RM estimado', short: '1RM', get: (s) => s.e1rm, fmt: kg },
   weight: { label: 'Peso máximo', short: 'Peso', get: (s) => s.maxWeight, fmt: kg },
   volume: { label: 'Tonelaje por sesión', short: 'Tonelaje', get: (s) => s.volume, fmt: (v) => `${fmtInt(v)} kg` },
   reps: { label: 'Repeticiones máximas', short: 'Reps', get: (s) => s.maxReps, fmt: (v) => `${fmtInt(v)} reps` },
+  e1rm: { label: '1RM estimado', short: '1RM', get: (s) => s.e1rm, fmt: kg },
 }
 
 const RANGES = [
@@ -181,7 +181,7 @@ function AboutTab({ exercise, onEdit }: { exercise: Exercise; onEdit: () => void
 
 function ChartsTab({ sessions }: { sessions: Session[] }) {
   const hasWeight = sessions.some((s) => s.maxWeight > 0)
-  const [metric, setMetric] = useState<MetricKey>(hasWeight ? 'e1rm' : 'reps')
+  const [metric, setMetric] = useState<MetricKey>(hasWeight ? 'weight' : 'reps')
   const [range, setRange] = useState<(typeof RANGES)[number]['key']>('1y')
   const [now] = useState(Date.now)
   const m = METRICS[metric]
@@ -238,7 +238,10 @@ function ChartsTab({ sessions }: { sessions: Session[] }) {
           />
         )}
         {metric === 'e1rm' && (
-          <p className="muted small-text">Estimado con la fórmula de Epley: peso × (1 + reps / 30).</p>
+          <p className="muted small-text">
+            Uno por sesión, con la primera serie después del calentamiento (la de más rendimiento) y la fórmula de
+            Epley: peso × (1 + reps / 30).
+          </p>
         )}
         {points.length > 0 && (
           <details className="table-view">
@@ -286,7 +289,6 @@ function RecordsTab({ sessions }: { sessions: Session[] }) {
   return (
     <>
       <div className="records-grid">
-        <RecordCard title="1RM estimado" rec={records.e1rm} value={(r) => kg(r.value)} detail={setText} />
         <RecordCard title="Peso máximo" rec={records.maxWeight} value={(r) => kg(r.value)} detail={setText} />
         <RecordCard
           title="Mejor serie (peso × reps)"
@@ -296,6 +298,7 @@ function RecordsTab({ sessions }: { sessions: Session[] }) {
         />
         <RecordCard title="Tonelaje en una sesión" rec={records.maxVolume} value={(r) => `${fmtInt(r.value)} kg`} />
         <RecordCard title="Máximo de repeticiones" rec={records.maxReps} value={(r) => `${fmtInt(r.value)} reps`} detail={setText} />
+        <RecordCard title="1RM estimado" rec={records.e1rm} value={(r) => kg(r.value)} detail={setText} />
       </div>
 
       {records.repMaxes.length > 0 && (
@@ -309,7 +312,6 @@ function RecordsTab({ sessions }: { sessions: Session[] }) {
               <tr>
                 <th>Reps</th>
                 <th className="num">Serie</th>
-                <th className="num">1RM est.</th>
                 <th className="num">Fecha</th>
               </tr>
             </thead>
@@ -318,7 +320,6 @@ function RecordsTab({ sessions }: { sessions: Session[] }) {
                 <tr key={r.from}>
                   <td>{r.from === r.to ? r.from : `${r.from}–${r.to}`}</td>
                   <td className="num">{fmtSet({ weight: r.weight, reps: r.actualReps })}</td>
-                  <td className="num">{kg(estimated1RM(r.weight, r.actualReps))}</td>
                   <td className="num">{fmtShortDate(r.date)}</td>
                 </tr>
               ))}
@@ -355,27 +356,28 @@ function HistoryTab({ sessions, onOpenWorkout }: { sessions: Session[]; onOpenWo
         const labels = setLabels(s.sets)
         return (
           <section key={s.workoutId} className="card">
-            {onOpenWorkout ? (
-              <button className="exercise-link" onClick={() => onOpenWorkout(s.workoutId)}>
-                <strong>{s.workoutName}</strong>
-                <br />
-                <span className="muted small-text">{fmtDate(s.date)}</span>
-              </button>
-            ) : (
-              <div>
-                <strong>{s.workoutName}</strong>
-                <br />
-                <span className="muted small-text">{fmtDate(s.date)}</span>
-              </div>
-            )}
+            <div className="card-head">
+              {onOpenWorkout ? (
+                <button className="exercise-link" onClick={() => onOpenWorkout(s.workoutId)}>
+                  <strong>{s.workoutName}</strong>
+                  <br />
+                  <span className="muted small-text">{fmtDate(s.date)}</span>
+                </button>
+              ) : (
+                <div>
+                  <strong>{s.workoutName}</strong>
+                  <br />
+                  <span className="muted small-text">{fmtDate(s.date)}</span>
+                </div>
+              )}
+              {/* One 1RM for the session, from the first set after the warm-ups: not one per set. */}
+              {s.e1rm > 0 && <span className="muted small-text session-e1rm">1RM {kg(s.e1rm)}</span>}
+            </div>
             <ul className="session-sets">
               {s.sets.map((set, i) => (
                 <li key={i}>
                   <span className={`set-tag type-${set.type}`}>{labels[i]}</span>
                   <span>{fmtSet(set)}</span>
-                  {set === s.best && set.weight ? (
-                    <span className="muted"> · 1RM {kg(estimated1RM(set.weight, set.reps ?? 0))}</span>
-                  ) : null}
                 </li>
               ))}
             </ul>
