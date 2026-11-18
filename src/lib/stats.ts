@@ -1,6 +1,6 @@
 import type { Exercise, Workout, WorkoutSet } from '../db'
 import { isUnilateral, MUSCLES, type Muscle } from './catalog'
-import { estimated1RM } from './workouts'
+import { e1rmSet, sessionE1rm } from './workouts'
 
 type SetLike = Pick<WorkoutSet, 'type' | 'weight' | 'reps'>
 
@@ -13,33 +13,19 @@ function setsVolume(sets: SetLike[]): number {
   return sets.reduce((sum, set) => (set.type === 'warmup' ? sum : sum + (set.weight ?? 0) * (set.reps ?? 0)), 0)
 }
 
-/** Heaviest set by estimated 1RM, ignoring warm-ups. */
-export function bestSet<T extends SetLike>(sets: T[]): T | undefined {
-  let best: T | undefined
-  let bestScore = -1
-  for (const s of sets) {
-    if (s.type === 'warmup') continue
-    const score = estimated1RM(s.weight ?? 0, s.reps ?? 0) || (s.reps ?? 0) / 1000
-    if (score > bestScore) {
-      best = s
-      bestScore = score
-    }
-  }
-  return best
-}
-
 /** One exercise as performed in one workout, with its derived metrics. */
 export interface Session {
   workoutId: string
   workoutName: string
   date: number
   sets: WorkoutSet[]
-  /** Best estimated 1RM (Epley) among working sets. */
+  /** Estimated 1RM (Epley) of the exercise, from its first set after the warm-ups (see `sessionE1rm`). */
   e1rm: number
+  /** The set the 1RM comes from. */
+  e1rmSet?: WorkoutSet
   maxWeight: number
   volume: number
   maxReps: number
-  best?: WorkoutSet
 }
 
 /** Every finished session of an exercise, oldest first. */
@@ -55,11 +41,11 @@ export function exerciseSessions(workouts: Workout[], exerciseId: string): Sessi
       workoutName: w.name,
       date: w.startedAt,
       sets,
-      e1rm: Math.max(0, ...working.map((s) => estimated1RM(s.weight ?? 0, s.reps ?? 0))),
+      e1rm: sessionE1rm(sets),
+      e1rmSet: e1rmSet(sets),
       maxWeight: Math.max(0, ...working.map((s) => s.weight ?? 0)),
       volume: setsVolume(sets),
       maxReps: Math.max(0, ...working.map((s) => s.reps ?? 0)),
-      best: bestSet(sets),
     })
   }
   return sessions.sort((a, b) => a.date - b.date)
@@ -73,6 +59,7 @@ export interface PersonalRecord {
 }
 
 export interface Records {
+  /** The best session 1RM (`Session.e1rm`): the 1RM is one figure per session, not per set. */
   e1rm?: PersonalRecord
   maxWeight?: PersonalRecord
   maxVolume?: PersonalRecord
@@ -89,13 +76,12 @@ export function personalRecords(sessions: Session[]): Records {
 
   for (const s of sessions) {
     if (better(records.maxVolume, s.volume)) records.maxVolume = { value: s.volume, date: s.date, workoutId: s.workoutId }
+    if (better(records.e1rm, s.e1rm)) records.e1rm = { value: s.e1rm, date: s.date, workoutId: s.workoutId, set: s.e1rmSet }
     for (const set of s.sets) {
       if (set.type === 'warmup') continue
       const w = set.weight ?? 0
       const r = set.reps ?? 0
       const rec = (value: number): PersonalRecord => ({ value, date: s.date, workoutId: s.workoutId, set })
-      const e1 = estimated1RM(w, r)
-      if (better(records.e1rm, e1)) records.e1rm = rec(e1)
       if (better(records.maxWeight, w)) records.maxWeight = rec(w)
       if (better(records.bestSetVolume, w * r)) records.bestSetVolume = rec(w * r)
       if (better(records.maxReps, r)) records.maxReps = rec(r)
@@ -112,8 +98,8 @@ export function personalRecords(sessions: Session[]): Records {
 }
 
 /**
- * For each workout, how many exercises set a new best (estimated 1RM or weight)
- * compared with everything done before. First-ever sessions don't count.
+ * For each workout, how many exercises set a new best (estimated 1RM, see `sessionE1rm`, or
+ * weight) compared with everything done before. First-ever sessions don't count.
  */
 export function workoutPRCounts(workouts: Workout[]): Map<string, number> {
   const best = new Map<string, { e1rm: number; weight: number }>()
@@ -121,15 +107,14 @@ export function workoutPRCounts(workouts: Workout[]): Map<string, number> {
   const finished = workouts.filter((w) => w.endedAt !== null).sort((a, b) => a.startedAt - b.startedAt)
   for (const w of finished) {
     let n = 0
+    // Each exercise's sets in this workout; the same exercise twice in a workout is one session.
+    const byExercise = new Map<string, WorkoutSet[]>()
+    for (const e of w.exercises) byExercise.set(e.exerciseId, [...(byExercise.get(e.exerciseId) ?? []), ...e.sets])
     const seen = new Map<string, { e1rm: number; weight: number }>()
-    for (const e of w.exercises) {
-      for (const s of e.sets) {
-        if (s.type === 'warmup') continue
-        const cur = seen.get(e.exerciseId) ?? { e1rm: 0, weight: 0 }
-        cur.e1rm = Math.max(cur.e1rm, estimated1RM(s.weight ?? 0, s.reps ?? 0))
-        cur.weight = Math.max(cur.weight, s.weight ?? 0)
-        seen.set(e.exerciseId, cur)
-      }
+    for (const [id, sets] of byExercise) {
+      const working = sets.filter((s) => s.type !== 'warmup')
+      if (!working.length) continue
+      seen.set(id, { e1rm: sessionE1rm(sets), weight: Math.max(0, ...working.map((s) => s.weight ?? 0)) })
     }
     for (const [id, today] of seen) {
       const prev = best.get(id)

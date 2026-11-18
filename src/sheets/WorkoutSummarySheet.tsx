@@ -14,11 +14,11 @@ import { useCloseSheet } from '../lib/sheets'
 import { volume } from '../lib/stats'
 import {
   discardWorkout,
-  estimated1RM,
   isPR,
   newWorkoutExercises,
   saveAsTemplate,
   saveWorkout,
+  sessionE1rm,
   type ExerciseContext,
 } from '../lib/workouts'
 import { ExerciseDetail } from '../pages/ExerciseDetailPage'
@@ -42,7 +42,7 @@ export function WorkoutSummaryRoute() {
   if (workout?.endedAt === null) return <Navigate to={`/workout/${id}`} replace state={location.state} />
 
   const records = workout
-    ? workout.exercises.reduce((n, e) => n + e.sets.filter((s) => isPR(s, context?.get(e.exerciseId))).length, 0)
+    ? workout.exercises.reduce((n, e) => n + e.sets.filter((_, i) => isPR(e.sets, i, context?.get(e.exerciseId))).length, 0)
     : 0
 
   async function saveTemplate(w: Workout) {
@@ -127,26 +127,28 @@ function SummaryExercise({
   onOpen: () => void
 }) {
   const labels = setLabels(we.sets)
+  // One 1RM for the exercise, from its first set after the warm-ups: not one per set.
+  const e1rm = sessionE1rm(we.sets)
   return (
     <section className="card summary-exercise">
-      <button className="exercise-link" onClick={onOpen}>
-        <h3>{exercise?.name ?? 'Ejercicio eliminado'}</h3>
-        {exercise && <ExerciseTags exercise={exercise} />}
-      </button>
+      <div className="card-head">
+        <button className="exercise-link" onClick={onOpen}>
+          <h3>{exercise?.name ?? 'Ejercicio eliminado'}</h3>
+          {exercise && <ExerciseTags exercise={exercise} />}
+        </button>
+        {e1rm > 0 && <span className="muted small-text session-e1rm">1RM {kg(e1rm)}</span>}
+      </div>
       {we.stickyNote && <p className="sticky-note pre-line">{we.stickyNote}</p>}
       <ul className="session-sets">
         {we.sets.map((s, i) => (
           <li key={i}>
             <span className={`set-tag type-${s.type}`}>{labels[i]}</span>
             <span>{fmtSet(s)}</span>
-            {isPR(s, context) && (
+            {isPR(we.sets, i, context) && (
               <span className="pr-badge">
                 <Icon name="trophy" size={14} /> Récord
               </span>
             )}
-            {s.type !== 'warmup' && s.weight && s.reps ? (
-              <span className="muted set-e1rm">1RM {kg(estimated1RM(s.weight, s.reps))}</span>
-            ) : null}
           </li>
         ))}
       </ul>

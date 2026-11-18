@@ -334,7 +334,7 @@ export function ExerciseCard({
                             })
                           }
                         />
-                      ) : isPR(s, context) ? (
+                      ) : isPR(we.sets, si, context) ? (
                         <span className="prev pr-badge">
                           <Icon name="trophy" size={16} /> Récord
                         </span>

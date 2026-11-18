@@ -1635,8 +1635,22 @@ details.table-view summary {
   gap: 10px;
 }
 
-.session-sets .set-e1rm {
-  margin-left: auto;
+/* A card's heading with the exercise's 1RM on the right: one figure for the exercise, not one per set. */
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-head > :first-child {
+  min-width: 0;
+}
+
+.card-head .session-e1rm {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .session-sets .set-tag {

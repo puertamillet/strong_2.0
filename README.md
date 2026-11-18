@@ -18,13 +18,13 @@ App de entrenamiento de fuerza para iPhone, gratuita y sin suscripción. Es una 
 - Catálogo de ejercicios en español (`src/data/ejercicios.csv`): cada uno con su material, lateralidad (bilateral o unilateral), músculos principales y secundarios, y sus nombres en Strong para que las importaciones lo encuentren. El material y la lateralidad se ven en recuadros junto al nombre.
 - Buscador con filtros por material, zona del cuerpo y músculo; las listas y los filtros solo tienen en cuenta los músculos principales. Al crear o editar un ejercicio hay que indicar todos los datos (las notas son opcionales).
 - Ficha de cada ejercicio con una figura del cuerpo, de frente y de espaldas, con los músculos principales y los secundarios en otro tono. La figura (aquí y en el Panel) es de hombre o de mujer según Ajustes.
-- Historial de entrenos (editable).
+- Historial de entrenos (editable). Cada ejercicio de un entreno lleva su 1RM estimado: uno por ejercicio, de la primera serie después del calentamiento (la de más rendimiento), no uno por serie. En la lista del historial, junto a cada ejercicio sale esa misma serie.
 - Importación del CSV que exporta Strong (Ajustes → Exportar datos): entrenos, ejercicios, notas, tipos de serie y descansos, sin duplicar si se importa otra vez.
 - Ajustes oculta por ahora los apartados de lo que se configura una vez (Entreno, Grabarte, Importar desde Strong y Plantillas), que ya están como se quieren. Vuelven a verse con `SHOW_SET_ONCE = true` en `src/lib/setOnce.ts`; lo configurado sigue funcionando mientras tanto.
 - Copia de seguridad completa en JSON (guardar y restaurar) y exportación a CSV con el formato de Strong.
 
-- Progreso por ejercicio: gráficas de 1RM estimado, peso máximo, tonelaje (peso × repeticiones) y repeticiones (3 meses, 1 año o todo), récords personales y mejor peso por repeticiones, e historial de sesiones.
-- Récords marcados con un trofeo al registrar una serie y en el historial.
+- Progreso por ejercicio: gráficas de peso máximo, tonelaje (peso × repeticiones), repeticiones y 1RM estimado (3 meses, 1 año o todo), récords personales y mejor peso por repeticiones, e historial de sesiones. El 1RM de cada sesión es el de su primera serie después del calentamiento (fórmula de Epley), y el récord de 1RM, el mejor de esos.
+- Récords marcados con un trofeo al registrar una serie y en el historial: más peso que nunca, en cualquier serie, o un 1RM mejor que el de todas las sesiones anteriores, en la primera serie después del calentamiento.
 
 ## Publicación
 

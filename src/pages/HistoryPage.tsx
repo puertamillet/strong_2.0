@@ -5,7 +5,8 @@ import { db } from '../db'
 import { exerciseLabel } from '../lib/exercises'
 import { useOpenSheet } from '../lib/sheets'
 import { fmtDate, fmtDuration, fmtInt, fmtSet } from '../lib/format'
-import { bestSet, volume, workoutPRCounts } from '../lib/stats'
+import { volume, workoutPRCounts } from '../lib/stats'
+import { e1rmSet } from '../lib/workouts'
 
 const PAGE = 30
 
@@ -59,13 +60,14 @@ export function HistoryPage() {
             </span>
             <ul className="history-exercises">
               {w.exercises.map((e, i) => {
-                const best = bestSet(e.sets)
+                // The set of most performance: the first after the warm-ups, the one the 1RM comes from.
+                const first = e1rmSet(e.sets)
                 return (
                   <li key={i}>
                     <span>
                       {e.sets.length} × {names?.get(e.exerciseId) ?? '?'}
                     </span>
-                    <span className="muted">{best ? fmtSet(best) : ''}</span>
+                    <span className="muted">{first ? fmtSet(first) : ''}</span>
                   </li>
                 )
               })}

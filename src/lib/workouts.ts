@@ -153,7 +153,7 @@ export async function lastPerformance(
 export interface ExerciseContext {
   /** The previous session of this exercise (before the given time). */
   last?: WorkoutExercise
-  /** Best estimated 1RM and heaviest weight before the given time. */
+  /** Best estimated 1RM of a session (see `sessionE1rm`) and heaviest weight before the given time. */
   bestE1rm: number
   bestWeight: number
   /** Earlier sessions; 0 means this is the first time. */
@@ -172,13 +172,10 @@ export async function exerciseContext(exerciseId: string, workoutId: string, bef
   let bestE1rm = 0
   let bestWeight = 0
   for (const w of earlier) {
-    for (const e of w.exercises) {
-      if (e.exerciseId !== exerciseId) continue
-      for (const s of e.sets) {
-        if (s.type === 'warmup') continue
-        bestE1rm = Math.max(bestE1rm, estimated1RM(s.weight ?? 0, s.reps ?? 0))
-        bestWeight = Math.max(bestWeight, s.weight ?? 0)
-      }
+    const sets = w.exercises.filter((e) => e.exerciseId === exerciseId).flatMap((e) => e.sets)
+    bestE1rm = Math.max(bestE1rm, sessionE1rm(sets))
+    for (const s of sets) {
+      if (s.type !== 'warmup') bestWeight = Math.max(bestWeight, s.weight ?? 0)
     }
   }
   const latest = earlier[earlier.length - 1]
@@ -260,13 +257,17 @@ export function stalledFor(sets: WorkoutSet[], ctx: ExerciseContext | undefined)
   return ctx.stalled
 }
 
-/** True if a completed set beats every earlier session (estimated 1RM or weight). */
-export function isPR(set: WorkoutSet, ctx: ExerciseContext | undefined): boolean {
-  if (!ctx || ctx.sessions === 0 || !set.done || set.type === 'warmup') return false
+/**
+ * True if the completed set `sets[i]` beats every earlier session: more weight than ever or, being
+ * the set the exercise's 1RM comes from (see `sessionE1rm`), a better estimated 1RM.
+ */
+export function isPR(sets: WorkoutSet[], i: number, ctx: ExerciseContext | undefined): boolean {
+  const set = sets[i]
+  if (!ctx || ctx.sessions === 0 || !set?.done || set.type === 'warmup') return false
   const w = set.weight ?? 0
   const r = set.reps ?? 0
   if (w <= 0 || r <= 0) return false
-  return estimated1RM(w, r) > ctx.bestE1rm + 1e-9 || w > ctx.bestWeight
+  return w > ctx.bestWeight || (set === e1rmSet(sets) && estimated1RM(w, r) > ctx.bestE1rm + 1e-9)
 }
 
 /** Number of completed sets in a workout. */
@@ -565,4 +566,21 @@ export function estimated1RM(weight: number, reps: number): number {
   if (reps <= 0 || weight <= 0) return 0
   if (reps === 1) return weight
   return weight * (1 + reps / 30)
+}
+
+/**
+ * The set an exercise's estimated 1RM in a workout comes from: the first one after the warm-ups,
+ * the freshest, where you perform best.
+ */
+export function e1rmSet<T extends Pick<WorkoutSet, 'type'>>(sets: T[]): T | undefined {
+  return sets.find((s) => s.type !== 'warmup')
+}
+
+/**
+ * The estimated 1RM of an exercise in a workout: one figure for the exercise, from its first set
+ * after the warm-ups (see `e1rmSet`), not one per set. 0 if that set has no weight or reps.
+ */
+export function sessionE1rm(sets: Pick<WorkoutSet, 'type' | 'weight' | 'reps'>[]): number {
+  const s = e1rmSet(sets)
+  return s ? estimated1RM(s.weight ?? 0, s.reps ?? 0) : 0
 }
