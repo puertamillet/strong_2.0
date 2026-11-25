@@ -13,6 +13,7 @@ import { afterMoving, afterRemoving, restTimer, useRestTimer } from '../lib/rest
 import { useCloseSheet } from '../lib/sheets'
 import { offerTemplateUpdate } from '../lib/templateUpdate'
 import { useNow } from '../lib/useNow'
+import { useTypedText } from '../lib/useTypedText'
 import {
   addExercisesToWorkout,
   countDoneSets,
@@ -67,6 +68,11 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
   const [detail, setDetail] = useState<string | null>(null)
   const id = workout.id
   const mutate = (fn: Parameters<typeof mutateWorkout>[1]) => void mutateWorkout(id, fn)
+  const nameField = useTypedText(workout.name, (text) =>
+    mutate((w) => {
+      w.name = text
+    }),
+  )
 
   async function discard() {
     await discardWorkout(id)
@@ -150,14 +156,10 @@ function ActiveWorkout({ workout }: { workout: Workout }) {
     >
       <input
         className="title-input"
-        value={workout.name}
+        value={nameField.value}
         aria-label="Nombre del entreno"
-        onChange={(e) => {
-          const name = e.target.value
-          mutate((w) => {
-            w.name = name
-          })
-        }}
+        onChange={nameField.onChange}
+        onBlur={nameField.onBlur}
       />
 
       {exercises &&

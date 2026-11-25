@@ -4,6 +4,7 @@ import { fmtClock, fmtNumber, fmtRange, fmtRest, fmtSet, parseRange, SET_TYPE_NA
 import { haptic } from '../lib/haptics'
 import { afterRemoving, restTimer, useRestTimer } from '../lib/restTimer'
 import { useNow } from '../lib/useNow'
+import { useTypedText } from '../lib/useTypedText'
 import { useFilming } from '../lib/filming'
 import { filmSetIndexes, isPR, nextSet, sameSets, stalledFor, type ExerciseContext } from '../lib/workouts'
 import { askRange, confirmDialog, notify, pickDuration } from '../lib/dialog'
@@ -265,24 +266,15 @@ export function ExerciseCard({
             setShowNote(false)
           }}
         >
-          <textarea
-            className="sticky-note"
-            aria-label="Nota"
-            placeholder="Nota: se ve siempre con el ejercicio"
-            rows={Math.max(1, (we.stickyNote ?? '').split('\n').length)}
-            autoFocus={!we.stickyNote}
-            value={we.stickyNote ?? ''}
-            onChange={(e) => {
-              const v = e.target.value
+          <StickyNote
+            saved={we.stickyNote ?? ''}
+            onSave={(v) =>
               onChange((x) => {
                 if (v.trim()) x.stickyNote = v
                 else delete x.stickyNote
               })
-            }}
-            onBlur={(e) => {
-              // What is written now: the saved note may not have come back yet.
-              if (!e.target.value.trim()) setShowNote(false)
-            }}
+            }
+            onLeaveEmpty={() => setShowNote(false)}
           />
         </SwipeToDelete>
       )}
@@ -428,6 +420,39 @@ export function ExerciseCard({
         ＋ Añadir serie
       </button>
     </section>
+  )
+}
+
+/**
+ * The exercise's note, yellow as in Strong. It keeps what is being typed rather than the saved note,
+ * so editing it in the middle leaves the cursor where it is (see useTypedText).
+ */
+function StickyNote({
+  saved,
+  onSave,
+  onLeaveEmpty,
+}: {
+  saved: string
+  onSave: (text: string) => void
+  /** Leaving it empty takes it away. */
+  onLeaveEmpty: () => void
+}) {
+  const note = useTypedText(saved, onSave)
+  return (
+    <textarea
+      className="sticky-note"
+      aria-label="Nota"
+      placeholder="Nota: se ve siempre con el ejercicio"
+      rows={Math.max(1, note.value.split('\n').length)}
+      autoFocus={!saved}
+      value={note.value}
+      onChange={note.onChange}
+      onBlur={(e) => {
+        note.onBlur()
+        // What is written now: the saved note may not have come back yet.
+        if (!e.target.value.trim()) onLeaveEmpty()
+      }}
+    />
   )
 }
 
